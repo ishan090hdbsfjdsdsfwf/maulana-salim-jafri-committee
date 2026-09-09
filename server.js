@@ -835,8 +835,10 @@ app.get(
                 await Registration.find()
                     .sort({ createdAt: -1 });
 
+            const baseUrl = req.protocol + '://' + req.get('host');
+
             let csv =
-                'Name,DOB,Father Name,Phone,Email,Address,Blood Group,Aadhaar,ID Proof,Role,Batting Style,Bowling Arm,Bowling Type,Lower Size,T-shirt Size,Jersey Number,Jersey Name,Event,Payment Amount,Payment UTR,Payment Status,Date\n';
+                'Name,DOB,Father Name,Phone,Email,Address,Blood Group,Aadhaar,ID Proof,Role,Batting Style,Bowling Arm,Bowling Type,Lower Size,T-shirt Size,Jersey Number,Jersey Name,Event,Payment Amount,Payment UTR,Payment Status,Player Photo URL,ID Proof Photo URL,Date\n';
 
             registrations.forEach(r => {
 
@@ -874,6 +876,8 @@ app.get(
                     r.paymentAmount || 700,
                     r.paymentUtr,
                     r.paymentStatus,
+                    r.photo ? `${baseUrl}/photo/${r.aadhaar}/player` : '',
+                    r.idProofPhoto ? `${baseUrl}/photo/${r.aadhaar}/idproof` : '',
                     r.createdAt
                         ? new Date(
                             r.createdAt
@@ -920,6 +924,56 @@ app.get(
 );
 
 
+// ---------- Serve a registrant's photo as a real image URL ----------
+// (used in CSV/Excel exports, since spreadsheets can't render raw base64 data)
+app.get(
+    '/photo/:aadhaar/:type',
+    checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const { aadhaar, type } = req.params;
+
+            if (!['player', 'idproof'].includes(type)) {
+                return res.status(400).send('Invalid photo type.');
+            }
+
+            const registration = await Registration.findById(aadhaar);
+
+            if (!registration) {
+                return res.status(404).send('Registration not found.');
+            }
+
+            const dataUrl = type === 'player'
+                ? registration.photo
+                : registration.idProofPhoto;
+
+            if (!dataUrl) {
+                return res.status(404).send('No photo on file.');
+            }
+
+            // dataUrl looks like: data:image/jpeg;base64,/9j/4AAQ...
+            const match = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+
+            if (!match) {
+                return res.status(500).send('Photo data is in an unexpected format.');
+            }
+
+            const contentType = match[1];
+            const buffer = Buffer.from(match[2], 'base64');
+
+            res.setHeader('Content-Type', contentType);
+            res.send(buffer);
+
+        } catch (err) {
+            console.error('Error serving photo:', err);
+            res.status(500).send('Could not load photo.');
+        }
+    }
+);
+
+
 // ---------- Cricauction export ----------
 app.get(
     '/admin/export-auction',
@@ -931,6 +985,8 @@ app.get(
             const registrations =
                 await Registration.find()
                     .sort({ createdAt: 1 });
+
+            const baseUrl = req.protocol + '://' + req.get('host');
 
             const header = [
 
@@ -1027,7 +1083,7 @@ app.get(
                         i + 1,
                         r.name,
                         r.phone,
-                        r.photo,
+                        r.photo ? `${baseUrl}/photo/${r.aadhaar}/player` : '',
                         ageFromDob(r.dob),
                         skillFor(r),
                         r.battingStyle,
@@ -1054,8 +1110,8 @@ app.get(
                         r.dob || '',
                         r.event || '',
 
-                        r.photo || '',
-                        r.idProofPhoto || ''
+                        r.photo ? `${baseUrl}/photo/${r.aadhaar}/player` : '',
+                        r.idProofPhoto ? `${baseUrl}/photo/${r.aadhaar}/idproof` : ''
 
                     ]
                         .map(field =>
