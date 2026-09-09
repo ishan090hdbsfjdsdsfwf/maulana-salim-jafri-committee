@@ -67,6 +67,7 @@ const registrationSchema = new mongoose.Schema({
 
     idProofType: String,
     photo: String,
+    idProofPhoto: String,
 
     isBatsman: Boolean,
     isBowler: Boolean,
@@ -118,10 +119,46 @@ const Registration = mongoose.model(
 );
 
 
+// ---------- Settings (for registration open/closed toggle) ----------
+const settingsSchema = new mongoose.Schema({
+    _id: { type: String, default: 'main' },
+    registrationOpen: { type: Boolean, default: true }
+});
+
+const Settings = mongoose.model('Settings', settingsSchema);
+
+async function getSettings() {
+    let settings = await Settings.findById('main');
+    if (!settings) {
+        settings = await Settings.create({ _id: 'main', registrationOpen: true });
+    }
+    return settings;
+}
+
+// Public endpoint: frontend checks this before showing/allowing the form
+app.get('/registration-status', async (req, res) => {
+    try {
+        const settings = await getSettings();
+        res.json({ open: settings.registrationOpen });
+    } catch (err) {
+        console.error('Error fetching registration status:', err);
+        res.json({ open: true }); // fail open so a DB hiccup doesn't block real registrations
+    }
+});
+
+
 // ---------- Registration submission ----------
 app.post('/submit-registration', async (req, res) => {
 
     try {
+
+        const settings = await getSettings();
+        if (!settings.registrationOpen) {
+            return res.status(403).json({
+                success: false,
+                message: 'Registration is currently closed.'
+            });
+        }
 
         const formData = req.body;
 
@@ -166,6 +203,7 @@ app.post('/submit-registration', async (req, res) => {
 
             idProofType: formData.idProofType,
             photo: formData.photo,
+            idProofPhoto: formData.idProofPhoto,
 
             isBatsman: formData.isBatsman,
             isBowler: formData.isBowler,
@@ -222,6 +260,13 @@ app.post('/submit-registration', async (req, res) => {
 app.post('/create-order', async (req, res) => {
 
     try {
+
+        const settings = await getSettings();
+        if (!settings.registrationOpen) {
+            return res.status(403).json({
+                error: 'Registration is currently closed.'
+            });
+        }
 
         if (!razorpay) {
             return res.status(500).json({
@@ -393,6 +438,7 @@ app.post('/verify-payment', async (req, res) => {
 
                 idProofType: formData.idProofType,
                 photo: formData.photo,
+                idProofPhoto: formData.idProofPhoto,
 
                 isBatsman: formData.isBatsman,
                 isBowler: formData.isBowler,
@@ -527,6 +573,8 @@ app.get(
 
         try {
 
+            const settings = await getSettings();
+
             const registrations =
                 await Registration.find()
                     .sort({ createdAt: -1 });
@@ -542,6 +590,16 @@ app.get(
                                 style="width:40px;height:40px;
                                 object-fit:cover;
                                 border-radius:4px;">`
+                        : ''
+                    }
+                </td>
+
+                <td>
+                    ${r.idProofPhoto
+                        ? `<a href="${r.idProofPhoto}" target="_blank"><img src="${r.idProofPhoto}"
+                                style="width:40px;height:40px;
+                                object-fit:cover;
+                                border-radius:4px;"></a>`
                         : ''
                     }
                 </td>
@@ -657,6 +715,33 @@ a.btn {
     Registrations (${registrations.length} total)
 </h2>
 
+<div style="
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:14px 18px;
+    margin-bottom:16px;
+    border-radius:6px;
+    background:${settings.registrationOpen ? '#e7f3ea' : '#fbe9e7'};
+    border:1px solid ${settings.registrationOpen ? '#16342B' : '#B5462F'};
+">
+    <span style="font-weight:bold; color:${settings.registrationOpen ? '#16342B' : '#B5462F'};">
+        Registration is currently ${settings.registrationOpen ? 'OPEN' : 'CLOSED'}
+    </span>
+
+    <a
+        href="/admin/toggle-registration"
+        class="btn"
+        style="
+            margin-top:0;
+            background:${settings.registrationOpen ? '#B5462F' : '#16342B'};
+            color:#fff;
+        "
+    >
+        ${settings.registrationOpen ? 'Close Registration' : 'Open Registration'}
+    </a>
+</div>
+
 <a class="btn" href="/admin/export">
     Download CSV
 </a>
@@ -674,6 +759,7 @@ a.btn {
 <tr>
 
 <th>Photo</th>
+<th>ID Photo</th>
 <th>Name</th>
 <th>DOB</th>
 <th>Father's Name</th>
@@ -709,6 +795,29 @@ ${rows}
             res.status(500).send(
                 'Could not load registrations.'
             );
+        }
+    }
+);
+
+
+// ---------- Toggle registration open/closed ----------
+app.get(
+    '/admin/toggle-registration',
+    checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const settings = await getSettings();
+            settings.registrationOpen = !settings.registrationOpen;
+            await settings.save();
+
+            res.redirect('/admin');
+
+        } catch (err) {
+
+            console.error('Error toggling registration status:', err);
+            res.status(500).send('Could not update registration status.');
         }
     }
 );
@@ -926,7 +1035,7 @@ app.get(
                         r.bowlingType,
 
                         '',
-                        '',
+                        r.address || '',
                         r.jerseyName,
                         r.jerseyNumber,
                         r.tshirtSize,
@@ -936,17 +1045,17 @@ app.get(
                         '',
                         '',
                         '',
-                        '',
+                        r.aadhaar || '',
 
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
-                        '',
+                        r.fatherName || '',
+                        r.bloodGroup || '',
+                        r.idProofType || '',
+                        r.email || '',
+                        r.dob || '',
+                        r.event || '',
 
-                        '',
-                        ''
+                        r.photo || '',
+                        r.idProofPhoto || ''
 
                     ]
                         .map(field =>

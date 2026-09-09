@@ -847,6 +847,20 @@
                 Payment confirms your registration.
             </p>
 
+            <div id="registration-closed-banner" style="
+                display:none;
+                background:#fbe9e7;
+                border:1px solid #B5462F;
+                color:#B5462F;
+                padding:16px;
+                border-radius:6px;
+                text-align:center;
+                font-weight:bold;
+                margin-bottom:20px;
+            ">
+                Registration is currently closed. Please check back later.
+            </div>
+
             <form id="regForm">
 
                 <!-- PLAYER DETAILS -->
@@ -895,9 +909,10 @@
 
                     <div class="field">
 
-                        <label for="reg-email">Email</label>
+                        <label for="reg-email">Email <span
+                                style="color:#999; text-transform:none;">(optional)</span></label>
 
-                        <input type="email" id="reg-email" required placeholder="Enter email address">
+                        <input type="email" id="reg-email" placeholder="Enter email address">
 
                     </div>
 
@@ -918,7 +933,7 @@
                     <div class="field">
 
                         <label for="reg-blood">
-                            Blood Group
+                            Blood Group <span style="color:#999; text-transform:none;">(optional)</span>
                         </label>
 
                         <select id="reg-blood">
@@ -956,7 +971,7 @@
                             ID Proof Type
                         </label>
 
-                        <select id="reg-idtype">
+                        <select id="reg-idtype" required>
                             <option value="">Select</option>
                             <option>Aadhaar Card</option>
                             <option>Bank Passbook</option>
@@ -973,7 +988,21 @@
                             Player Photo
                         </label>
 
-                        <input type="file" id="reg-photo" accept="image/*">
+                        <input type="file" id="reg-photo" accept="image/*" required>
+
+                    </div>
+
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="reg-idphoto">
+                            ID Proof Photo
+                        </label>
+
+                        <input type="file" id="reg-idphoto" accept="image/*" required>
 
                     </div>
 
@@ -1012,7 +1041,7 @@
                     <div class="radio-group">
 
                         <label>
-                            <input type="radio" name="batting" value="Right Hand">
+                            <input type="radio" name="batting" value="Right Hand" required>
                             Right Hand
                         </label>
 
@@ -1032,7 +1061,7 @@
                     <div class="radio-group">
 
                         <label>
-                            <input type="radio" name="bowlarm" value="Right Hand">
+                            <input type="radio" name="bowlarm" value="Right Hand" required>
                             Right Hand
                         </label>
 
@@ -1052,7 +1081,7 @@
                     <div class="radio-group">
 
                         <label>
-                            <input type="radio" name="bowltype" value="Fast">
+                            <input type="radio" name="bowltype" value="Fast" required>
                             Fast
                         </label>
 
@@ -1078,7 +1107,7 @@
                 <!-- KIT DETAILS -->
 
                 <div class="section-label">
-                    Kit Details
+                    Kit Details <span style="color:#999; text-transform:none; letter-spacing:0;">(optional)</span>
                 </div>
 
                 <div class="field-row">
@@ -1237,15 +1266,12 @@
 
                 <p>
                     Maudaha, Hamirpur<br>
-                    Uttar Pradesh – 210427
+                    Uttar Pradesh – 210507
                 </p>
 
                 <p>
-                    info@maudahacricket.in
-                </p>
-
-                <p>
-                    +91 12345 67890
+                    Nizam Uddin<br>
+                    +91 96511 34637
                 </p>
 
             </div>
@@ -1257,6 +1283,17 @@
             All rights reserved.
         </div>
 
+        <div class="footer-bottom" style="margin-top:6px;">
+            Organized by Nizam Uddin &middot; +91 96511 34637
+        </div>
+
+        <div class="footer-bottom"
+            style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:8px;">
+            <img src="assets/developer.jpeg" alt="Ishan Khan"
+                style="width:22px; height:22px; border-radius:50%; object-fit:cover;">
+            <span>Developed by Ishan Khan</span>
+        </div>
+
     </footer>
 
     <!-- ================= JAVASCRIPT ================= -->
@@ -1264,9 +1301,37 @@
     <script>
         const form = document.getElementById('regForm');
         const statusEl = document.getElementById('reg-status');
+        const closedBanner = document.getElementById('registration-closed-banner');
+
+        // Check whether registration is open as soon as the page loads
+        (async function checkRegistrationStatus() {
+            try {
+                const res = await fetch('/registration-status');
+                const data = await res.json();
+
+                if (!data.open) {
+                    form.style.display = 'none';
+                    closedBanner.style.display = 'block';
+                }
+            } catch (err) {
+                // If the check itself fails, don't block the form —
+                // the server still enforces this on actual submission.
+                console.error('Could not check registration status:', err);
+            }
+        })();
 
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
+
+            /* At least one playing role must be selected */
+            const isBatsman = document.getElementById('reg-batsman').checked;
+            const isBowler = document.getElementById('reg-bowler-role').checked;
+
+            if (!isBatsman && !isBowler) {
+                statusEl.style.color = '#B5462F';
+                statusEl.textContent = 'Please select at least one playing role (Batsman or Bowler).';
+                return;
+            }
 
             /* Convert player photo to base64 */
             const photoFile = document.getElementById('reg-photo').files[0];
@@ -1279,6 +1344,20 @@
                     reader.onerror = reject;
 
                     reader.readAsDataURL(photoFile);
+                })
+                : null;
+
+            /* Convert ID proof photo to base64 (mandatory) */
+            const idPhotoFile = document.getElementById('reg-idphoto').files[0];
+
+            const idPhotoBase64 = idPhotoFile
+                ? await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+
+                    reader.readAsDataURL(idPhotoFile);
                 })
                 : null;
 
@@ -1302,12 +1381,10 @@
                 aadhaar: document.getElementById('reg-aadhaar').value.trim(),
                 idProofType: document.getElementById('reg-idtype').value,
                 photo: photoBase64,
+                idProofPhoto: idPhotoBase64,
 
-                isBatsman:
-                    document.getElementById('reg-batsman').checked,
-
-                isBowler:
-                    document.getElementById('reg-bowler-role').checked,
+                isBatsman: isBatsman,
+                isBowler: isBowler,
 
                 battingStyle:
                     battingStyle ? battingStyle.value : '',
