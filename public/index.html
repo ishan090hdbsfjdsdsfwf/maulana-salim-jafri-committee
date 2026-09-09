@@ -1,0 +1,1505 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
+    <title>Maulana Salim Jafri Sports & Mushaira Committee, Maudaha</title>
+
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link
+        href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+
+    <!-- Razorpay checkout -->
+    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
+
+    <style>
+        :root {
+            --green: #16342B;
+            --green-dark: #0E241E;
+            --gold: #D8A33C;
+            --bone: #F6F3EA;
+            --ink: #1B1B18;
+            --clay: #B5462F;
+            --line: rgba(27, 27, 24, 0.15);
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        html {
+            scroll-behavior: smooth;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background: var(--bone);
+            color: var(--ink);
+            line-height: 1.6;
+        }
+
+        h1,
+        h2,
+        h3,
+        .display {
+            font-family: 'Oswald', sans-serif;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.01em;
+            line-height: 1.05;
+        }
+
+        a {
+            color: inherit;
+            text-decoration: none;
+        }
+
+        .wrap {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding: 0 24px;
+        }
+
+        section {
+            padding: 80px 0;
+        }
+
+        /* ================= NAVBAR ================= */
+
+        nav {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 18px 30px;
+            border-bottom: 1px solid var(--line);
+            background: var(--bone);
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            font-family: 'Oswald', sans-serif;
+            font-weight: 700;
+            font-size: 15px;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            line-height: 1.2;
+        }
+
+        .logo img {
+            height: 54px;
+            width: 54px;
+            border-radius: 50%;
+            object-fit: cover;
+            flex-shrink: 0;
+        }
+
+        .logo-text {
+            max-width: 280px;
+        }
+
+        .logo-text .committee {
+            display: block;
+        }
+
+        .logo-text .place {
+            display: block;
+            color: var(--gold);
+            font-size: 12px;
+            margin-top: 3px;
+        }
+
+        .nav-links {
+            display: flex;
+            gap: 30px;
+            font-size: 14px;
+            font-weight: 600;
+        }
+
+        .nav-links a:hover {
+            color: var(--gold);
+        }
+
+        @media (max-width: 700px) {
+            nav {
+                padding: 14px 18px;
+            }
+
+            .logo {
+                font-size: 12px;
+            }
+
+            .logo img {
+                width: 44px;
+                height: 44px;
+            }
+
+            .logo-text {
+                max-width: 210px;
+            }
+
+            .nav-links {
+                display: none;
+            }
+        }
+
+        /* ================= HERO ================= */
+
+        .hero {
+            background: var(--green);
+            color: var(--bone);
+            padding: 100px 24px 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .hero-inner {
+            max-width: 1100px;
+            margin: 0 auto;
+            padding-bottom: 65px;
+        }
+
+        .hero h1 {
+            font-size: clamp(42px, 7vw, 76px);
+            max-width: 760px;
+        }
+
+        .hero h1 em {
+            font-style: normal;
+            color: var(--gold);
+        }
+
+        .hero p {
+            max-width: 650px;
+            font-size: 17px;
+            margin-top: 22px;
+            color: rgba(246, 243, 234, 0.88);
+        }
+
+        .hero-ctas {
+            display: flex;
+            gap: 16px;
+            margin-top: 32px;
+            flex-wrap: wrap;
+        }
+
+        .btn {
+            display: inline-block;
+            padding: 14px 28px;
+            font-size: 14px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            cursor: pointer;
+            border: none;
+        }
+
+        .btn-gold {
+            background: var(--gold);
+            color: var(--green-dark);
+        }
+
+        .btn-gold:hover {
+            background: #c4922f;
+        }
+
+        .btn-outline {
+            background: transparent;
+            border: 1px solid rgba(246, 243, 234, 0.5);
+            color: var(--bone);
+        }
+
+        .btn-outline:hover {
+            border-color: var(--bone);
+        }
+
+        /* ================= STATS ================= */
+
+        .stats-panel {
+            background: var(--gold);
+            clip-path: polygon(0 12%, 100% 0, 100% 100%, 0 100%);
+            margin-top: 20px;
+        }
+
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            padding: 56px 24px 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+            gap: 24px;
+        }
+
+        .stat-num {
+            font-family: 'Oswald', sans-serif;
+            font-size: 36px;
+            font-weight: 700;
+            color: var(--green-dark);
+        }
+
+        .stat-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--green-dark);
+            margin-top: 4px;
+        }
+
+        @media (max-width: 700px) {
+            .stats-grid {
+                grid-template-columns: repeat(2, 1fr);
+            }
+        }
+
+        /* ================= SPORTS ================= */
+
+        .sports-strip {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 1px;
+            background: var(--line);
+            border: 1px solid var(--line);
+            margin-top: 60px;
+        }
+
+        .sport-tile {
+            background: var(--bone);
+            padding: 36px 20px;
+            text-align: center;
+        }
+
+        .sport-tile h3 {
+            font-size: 21px;
+        }
+
+        .sport-tile .tag {
+            font-size: 12px;
+            color: var(--clay);
+            margin-top: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+        }
+
+        @media (max-width: 700px) {
+            .sports-strip {
+                grid-template-columns: 1fr;
+            }
+        }
+
+        /* ================= ABOUT ================= */
+
+        .about {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 60px;
+            align-items: start;
+        }
+
+        .about h2 {
+            font-size: 34px;
+            margin-bottom: 20px;
+        }
+
+        .about p {
+            max-width: 520px;
+            color: #4a4a45;
+        }
+
+        .about-side {
+            border-left: 2px solid var(--gold);
+            padding-left: 24px;
+        }
+
+        .about-side h3 {
+            font-size: 22px;
+            margin-bottom: 14px;
+        }
+
+        .about-side p {
+            font-size: 14px;
+        }
+
+        @media (max-width: 700px) {
+            .about {
+                grid-template-columns: 1fr;
+                gap: 35px;
+            }
+
+            .about-side {
+                border-left: none;
+                border-top: 2px solid var(--gold);
+                padding-left: 0;
+                padding-top: 20px;
+            }
+        }
+
+        /* ================= EVENTS ================= */
+
+        .events {
+            background: var(--green-dark);
+            color: var(--bone);
+        }
+
+        .events h2 {
+            font-size: 34px;
+            margin-bottom: 12px;
+        }
+
+        .events-intro {
+            color: rgba(246, 243, 234, 0.7);
+            max-width: 650px;
+            margin-bottom: 36px;
+        }
+
+        .event-list {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .event-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 28px 0;
+            border-bottom: 1px solid rgba(246, 243, 234, 0.15);
+            flex-wrap: wrap;
+            gap: 18px;
+        }
+
+        .event-row h3 {
+            font-size: 23px;
+            color: var(--bone);
+        }
+
+        .event-row .loc {
+            font-size: 13px;
+            color: rgba(246, 243, 234, 0.6);
+            margin-top: 6px;
+        }
+
+        .event-row .event-type {
+            display: inline-block;
+            margin-top: 8px;
+            font-size: 11px;
+            color: var(--gold);
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+        }
+
+        .event-row .btn-outline {
+            padding: 10px 20px;
+            font-size: 12px;
+        }
+
+        .info-only {
+            color: var(--gold);
+            font-size: 12px;
+            font-weight: 700;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        /* ================= REGISTRATION ================= */
+
+        .register {
+            background: var(--bone);
+        }
+
+        .register-panel {
+            border: 2px solid var(--gold);
+            padding: 48px;
+            max-width: 720px;
+            margin: 0 auto;
+        }
+
+        .register h2 {
+            font-size: 32px;
+            text-align: center;
+            margin-bottom: 8px;
+        }
+
+        .register .sub {
+            text-align: center;
+            color: #4a4a45;
+            font-size: 14px;
+            margin-bottom: 32px;
+        }
+
+        .section-label {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            color: var(--gold);
+            font-weight: 700;
+            margin: 28px 0 12px;
+            border-top: 1px solid var(--line);
+            padding-top: 20px;
+        }
+
+        .section-label:first-of-type {
+            border-top: none;
+            margin-top: 0;
+            padding-top: 0;
+        }
+
+        .field-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 16px;
+        }
+
+        .field {
+            margin-bottom: 20px;
+        }
+
+        label {
+            display: block;
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 0.03em;
+            margin-bottom: 6px;
+            color: #4a4a45;
+        }
+
+        input,
+        select {
+            width: 100%;
+            padding: 12px 14px;
+            font-size: 15px;
+            font-family: 'Inter', sans-serif;
+            border: 1px solid var(--line);
+            background: #fff;
+            color: var(--ink);
+        }
+
+        input:focus,
+        select:focus {
+            outline: 2px solid var(--gold);
+            outline-offset: 1px;
+        }
+
+        input[type="file"] {
+            padding: 8px 0;
+            border: none;
+            background: transparent;
+        }
+
+        .radio-group {
+            display: flex;
+            gap: 20px;
+            margin-top: 4px;
+            flex-wrap: wrap;
+        }
+
+        .radio-group label {
+            display: flex;
+            align-items: center;
+            gap: 6px;
+            text-transform: none;
+            font-size: 14px;
+            color: var(--ink);
+            margin-bottom: 0;
+        }
+
+        .radio-group input {
+            width: auto;
+        }
+
+        .fee-row {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 14px 0;
+            border-top: 1px solid var(--line);
+            border-bottom: 1px solid var(--line);
+            margin-bottom: 24px;
+            font-size: 14px;
+        }
+
+        .fee-amt {
+            font-family: 'Oswald', sans-serif;
+            font-size: 22px;
+            font-weight: 700;
+        }
+
+        .btn-pay {
+            width: 100%;
+            padding: 16px;
+            font-size: 14px;
+        }
+
+        #reg-status {
+            margin-top: 16px;
+            font-size: 14px;
+            text-align: center;
+            min-height: 22px;
+        }
+
+        .registration-note {
+            margin-top: 20px;
+            padding: 14px;
+            background: rgba(216, 163, 60, 0.10);
+            border-left: 3px solid var(--gold);
+            font-size: 13px;
+            color: #4a4a45;
+        }
+
+        @media (max-width: 600px) {
+            .register-panel {
+                padding: 28px 20px;
+            }
+
+            .field-row {
+                grid-template-columns: 1fr;
+                gap: 0;
+            }
+        }
+
+        /* ================= FOOTER ================= */
+
+        footer {
+            background: var(--ink);
+            color: rgba(246, 243, 234, 0.7);
+            padding: 48px 24px 24px;
+        }
+
+        .footer-grid {
+            display: grid;
+            grid-template-columns: 2fr 1fr 1fr;
+            gap: 40px;
+            max-width: 1100px;
+            margin: 0 auto;
+        }
+
+        .footer-grid h4 {
+            color: var(--bone);
+            font-size: 13px;
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 14px;
+        }
+
+        .footer-grid p,
+        .footer-grid a {
+            font-size: 14px;
+            display: block;
+            margin-bottom: 8px;
+        }
+
+        .footer-grid a:hover {
+            color: var(--gold);
+        }
+
+        .footer-bottom {
+            max-width: 1100px;
+            margin: 32px auto 0;
+            padding-top: 20px;
+            border-top: 1px solid rgba(246, 243, 234, 0.1);
+            font-size: 12px;
+        }
+
+        @media (max-width: 700px) {
+            .footer-grid {
+                grid-template-columns: 1fr;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <!-- ================= NAVBAR ================= -->
+
+    <nav>
+        <div class="logo">
+            <img src="assets/logo.jpeg" alt="Maulana Salim Jafri Sports & Mushaira Committee logo">
+
+            <span class="logo-text">
+                <span class="committee">
+                    Maulana Salim Jafri Sports &amp; Mushaira Committee
+                </span>
+                <span class="place">Maudaha</span>
+            </span>
+        </div>
+
+        <div class="nav-links">
+            <a href="#about">About</a>
+            <a href="#events">Events</a>
+            <a href="#register">Register</a>
+            <a href="#contact">Contact</a>
+        </div>
+    </nav>
+
+    <!-- ================= HERO ================= -->
+
+    <div class="hero">
+
+        <div class="hero-inner">
+
+            <h1>
+                We organize.<br>
+                You play.<br>
+                <em>Everyone wins.</em>
+            </h1>
+
+            <p>
+                Maulana Salim Jafri Sports &amp; Mushaira Committee,
+                Maudaha brings people together through sports, cricket
+                tournaments, Mushaira and community events.
+            </p>
+
+            <div class="hero-ctas">
+                <a href="#events" class="btn btn-gold">
+                    View upcoming events
+                </a>
+
+                <a href="#register" class="btn btn-outline">
+                    Register for MPL
+                </a>
+            </div>
+
+        </div>
+
+        <div class="stats-panel">
+            <div class="stats-grid">
+
+                <div>
+                    <div class="stat-num">MPL</div>
+                    <div class="stat-label">Maudaha Premier League</div>
+                </div>
+
+                <div>
+                    <div class="stat-num">AI</div>
+                    <div class="stat-label">All India Mushaira</div>
+                </div>
+
+                <div>
+                    <div class="stat-num">AI</div>
+                    <div class="stat-label">All India Hockey</div>
+                </div>
+
+                <div>
+                    <div class="stat-num">1</div>
+                    <div class="stat-label">Cricket Registration</div>
+                </div>
+
+            </div>
+        </div>
+
+    </div>
+
+    <!-- ================= SPORTS / EVENTS STRIP ================= -->
+
+    <div class="wrap">
+
+        <div class="sports-strip">
+
+            <div class="sport-tile">
+                <h3>MPL</h3>
+                <div class="tag">Maudaha Premier League</div>
+            </div>
+
+            <div class="sport-tile">
+                <h3>All India Mushaira</h3>
+                <div class="tag">Cultural Event</div>
+            </div>
+
+            <div class="sport-tile">
+                <h3>All India Hockey</h3>
+                <div class="tag">Hockey Tournament</div>
+            </div>
+
+        </div>
+
+    </div>
+
+    <!-- ================= ABOUT ================= -->
+
+    <section id="about" class="wrap about">
+
+        <div>
+            <h2>About the Committee</h2>
+
+            <p>
+                Maulana Salim Jafri Sports &amp; Mushaira Committee,
+                Maudaha is dedicated to organising sports and cultural
+                events that bring players, artists, fans and communities
+                together.
+            </p>
+        </div>
+
+        <div class="about-side">
+
+            <h3>Our Events</h3>
+
+            <p>
+                From the Maudaha Premier League to All India Hockey
+                tournaments and the All India Mushaira, our aim is to
+                create well-organised events that celebrate talent,
+                sportsmanship and community spirit.
+            </p>
+
+        </div>
+
+    </section>
+
+    <!-- ================= EVENTS ================= -->
+
+    <section id="events" class="events">
+
+        <div class="wrap">
+
+            <h2>Upcoming Events</h2>
+
+            <p class="events-intro">
+                Explore the major events organised by the Maulana Salim
+                Jafri Sports &amp; Mushaira Committee.
+                Cricket registration is currently available for MPL.
+            </p>
+
+            <div class="event-list">
+
+                <!-- MPL: REGISTRATION AVAILABLE -->
+                <div class="event-row">
+
+                    <div>
+                        <h3>Maudaha Premier League (MPL)</h3>
+
+                        <div class="loc">
+                            Maudaha
+                        </div>
+
+                        <div class="event-type">
+                            Cricket Tournament
+                        </div>
+                    </div>
+
+                    <a href="#register" class="btn btn-outline">
+                        Register
+                    </a>
+
+                </div>
+
+                <!-- MUSHAIRA: INFORMATION ONLY -->
+                <div class="event-row">
+
+                    <div>
+                        <h3>All India Mushaira</h3>
+
+                        <div class="loc">
+                            Maudaha
+                        </div>
+
+                        <div class="event-type">
+                            Mushaira &amp; Cultural Event
+                        </div>
+                    </div>
+
+                    <span class="info-only">
+                        Event Information
+                    </span>
+
+                </div>
+
+                <!-- HOCKEY: INFORMATION ONLY -->
+                <div class="event-row">
+
+                    <div>
+                        <h3>All India Hockey Tournament</h3>
+
+                        <div class="loc">
+                            Maudaha
+                        </div>
+
+                        <div class="event-type">
+                            Hockey Tournament
+                        </div>
+                    </div>
+
+                    <span class="info-only">
+                        Event Information
+                    </span>
+
+                </div>
+
+            </div>
+
+        </div>
+
+    </section>
+
+    <!-- ================= REGISTRATION ================= -->
+
+    <section id="register" class="register">
+
+        <div class="register-panel">
+
+            <h2>Register for MPL</h2>
+
+            <p class="sub">
+                Maudaha Premier League cricket registration.
+                Payment confirms your registration.
+            </p>
+
+            <form id="regForm">
+
+                <!-- PLAYER DETAILS -->
+
+                <div class="section-label">
+                    Player Details
+                </div>
+
+                <div class="field">
+
+                    <label for="reg-name">Full Name</label>
+
+                    <input type="text" id="reg-name" required placeholder="Enter full name">
+
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="reg-dob">Date of Birth</label>
+
+                        <input type="date" id="reg-dob" required>
+
+                    </div>
+
+                    <div class="field">
+
+                        <label for="reg-father">Father's Name</label>
+
+                        <input type="text" id="reg-father" required placeholder="Enter father's name">
+
+                    </div>
+
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="reg-phone">Mobile Number</label>
+
+                        <input type="tel" id="reg-phone" required placeholder="10-digit mobile number">
+
+                    </div>
+
+                    <div class="field">
+
+                        <label for="reg-email">Email</label>
+
+                        <input type="email" id="reg-email" required placeholder="Enter email address">
+
+                    </div>
+
+                </div>
+
+                <div class="field">
+
+                    <label for="reg-address">
+                        Permanent Address
+                    </label>
+
+                    <input type="text" id="reg-address" required placeholder="Enter permanent address">
+
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="reg-blood">
+                            Blood Group
+                        </label>
+
+                        <select id="reg-blood">
+                            <option value="">Select</option>
+                            <option>A+</option>
+                            <option>A-</option>
+                            <option>B+</option>
+                            <option>B-</option>
+                            <option>O+</option>
+                            <option>O-</option>
+                            <option>AB+</option>
+                            <option>AB-</option>
+                        </select>
+
+                    </div>
+
+                    <div class="field">
+
+                        <label for="reg-aadhaar">
+                            Aadhaar Number
+                        </label>
+
+                        <input type="text" id="reg-aadhaar" maxlength="12" minlength="12" pattern="[0-9]{12}" required
+                            placeholder="12-digit number">
+
+                    </div>
+
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="reg-idtype">
+                            ID Proof Type
+                        </label>
+
+                        <select id="reg-idtype">
+                            <option value="">Select</option>
+                            <option>Aadhaar Card</option>
+                            <option>Bank Passbook</option>
+                            <option>PAN Card</option>
+                            <option>Driving Licence</option>
+                            <option>Passport</option>
+                        </select>
+
+                    </div>
+
+                    <div class="field">
+
+                        <label for="reg-photo">
+                            Player Photo
+                        </label>
+
+                        <input type="file" id="reg-photo" accept="image/*">
+
+                    </div>
+
+                </div>
+
+                <!-- PLAYING PROFILE -->
+
+                <div class="section-label">
+                    Playing Profile
+                </div>
+
+                <div class="field">
+
+                    <label>Playing Role</label>
+
+                    <div class="radio-group">
+
+                        <label>
+                            <input type="checkbox" id="reg-batsman">
+                            Batsman
+                        </label>
+
+                        <label>
+                            <input type="checkbox" id="reg-bowler-role">
+                            Bowler
+                        </label>
+
+                    </div>
+
+                </div>
+
+                <div class="field">
+
+                    <label>Batting Style</label>
+
+                    <div class="radio-group">
+
+                        <label>
+                            <input type="radio" name="batting" value="Right Hand">
+                            Right Hand
+                        </label>
+
+                        <label>
+                            <input type="radio" name="batting" value="Left Hand">
+                            Left Hand
+                        </label>
+
+                    </div>
+
+                </div>
+
+                <div class="field">
+
+                    <label>Bowling Arm</label>
+
+                    <div class="radio-group">
+
+                        <label>
+                            <input type="radio" name="bowlarm" value="Right Hand">
+                            Right Hand
+                        </label>
+
+                        <label>
+                            <input type="radio" name="bowlarm" value="Left Hand">
+                            Left Hand
+                        </label>
+
+                    </div>
+
+                </div>
+
+                <div class="field">
+
+                    <label>Bowling Type</label>
+
+                    <div class="radio-group">
+
+                        <label>
+                            <input type="radio" name="bowltype" value="Fast">
+                            Fast
+                        </label>
+
+                        <label>
+                            <input type="radio" name="bowltype" value="Medium Fast">
+                            Medium Fast
+                        </label>
+
+                        <label>
+                            <input type="radio" name="bowltype" value="Leg Spin">
+                            Leg Spin
+                        </label>
+
+                        <label>
+                            <input type="radio" name="bowltype" value="Off Spin">
+                            Off Spin
+                        </label>
+
+                    </div>
+
+                </div>
+
+                <!-- KIT DETAILS -->
+
+                <div class="section-label">
+                    Kit Details
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="reg-lowersize">
+                            Trouser / Lower Size
+                        </label>
+
+                        <select id="reg-lowersize">
+                            <option value="">Select</option>
+                            <option>S</option>
+                            <option>M</option>
+                            <option>L</option>
+                            <option>XL</option>
+                            <option>XXL</option>
+                        </select>
+
+                    </div>
+
+                    <div class="field">
+
+                        <label for="reg-tshirtsize">
+                            T-Shirt Size
+                        </label>
+
+                        <select id="reg-tshirtsize">
+                            <option value="">Select</option>
+                            <option>S</option>
+                            <option>M</option>
+                            <option>L</option>
+                            <option>XL</option>
+                            <option>XXL</option>
+                        </select>
+
+                    </div>
+
+                </div>
+
+                <div class="field-row">
+
+                    <div class="field">
+
+                        <label for="reg-jerseynum">
+                            Jersey Number
+                        </label>
+
+                        <input type="number" id="reg-jerseynum" min="0" max="99" placeholder="0 - 99">
+
+                    </div>
+
+                    <div class="field">
+
+                        <label for="reg-jerseyname">
+                            Jersey Name
+                        </label>
+
+                        <input type="text" id="reg-jerseyname" placeholder="Name on jersey">
+
+                    </div>
+
+                </div>
+
+                <!-- EVENT -->
+
+                <div class="section-label">
+                    Event
+                </div>
+
+                <div class="field">
+
+                    <label for="reg-event">
+                        Tournament
+                    </label>
+
+                    <!-- ONLY CRICKET / MPL IS AVAILABLE FOR REGISTRATION -->
+                    <select id="reg-event" required>
+
+                        <option value="">
+                            Choose an event
+                        </option>
+
+                        <option value="mpl">
+                            Maudaha Premier League (MPL)
+                        </option>
+
+                    </select>
+
+                </div>
+
+                <div class="registration-note">
+                    <strong>Registration note:</strong>
+                    Registration is currently available only for the
+                    Maudaha Premier League (MPL) cricket tournament.
+                    All India Mushaira and All India Hockey are
+                    information-only events on this website.
+                </div>
+
+                <div class="fee-row">
+
+                    <span>
+                        Registration Fee
+                    </span>
+
+                    <span class="fee-amt">
+                        ₹700
+                    </span>
+
+                </div>
+
+                <button type="submit" class="btn btn-gold btn-pay">
+                    Pay &amp; Confirm Registration
+                </button>
+
+                <div id="reg-status"></div>
+
+            </form>
+
+        </div>
+
+    </section>
+
+    <!-- ================= FOOTER ================= -->
+
+    <footer id="contact">
+
+        <div class="footer-grid">
+
+            <div>
+
+                <h4>
+                    Maulana Salim Jafri Sports &amp; Mushaira Committee
+                </h4>
+
+                <p>
+                    Maudaha — bringing sports, cricket, hockey and
+                    cultural events together for the community.
+                </p>
+
+            </div>
+
+            <div>
+
+                <h4>Quick Links</h4>
+
+                <a href="#about">About Us</a>
+                <a href="#events">Events</a>
+                <a href="#register">MPL Registration</a>
+
+            </div>
+
+            <div id="contact">
+
+                <h4>Contact</h4>
+
+                <p>
+                    Maudaha, Hamirpur<br>
+                    Uttar Pradesh – 210427
+                </p>
+
+                <p>
+                    info@maudahacricket.in
+                </p>
+
+                <p>
+                    +91 12345 67890
+                </p>
+
+            </div>
+
+        </div>
+
+        <div class="footer-bottom">
+            &copy; 2026 Maulana Salim Jafri Sports &amp; Mushaira Committee.
+            All rights reserved.
+        </div>
+
+    </footer>
+
+    <!-- ================= JAVASCRIPT ================= -->
+
+    <script>
+        const form = document.getElementById('regForm');
+        const statusEl = document.getElementById('reg-status');
+
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
+
+            /* Convert player photo to base64 */
+            const photoFile = document.getElementById('reg-photo').files[0];
+
+            const photoBase64 = photoFile
+                ? await new Promise((resolve, reject) => {
+                    const reader = new FileReader();
+
+                    reader.onload = () => resolve(reader.result);
+                    reader.onerror = reject;
+
+                    reader.readAsDataURL(photoFile);
+                })
+                : null;
+
+            const battingStyle =
+                document.querySelector('input[name="batting"]:checked');
+
+            const bowlingArm =
+                document.querySelector('input[name="bowlarm"]:checked');
+
+            const bowlingType =
+                document.querySelector('input[name="bowltype"]:checked');
+
+            const formData = {
+                name: document.getElementById('reg-name').value.trim(),
+                dob: document.getElementById('reg-dob').value,
+                fatherName: document.getElementById('reg-father').value.trim(),
+                email: document.getElementById('reg-email').value.trim(),
+                phone: document.getElementById('reg-phone').value.trim(),
+                address: document.getElementById('reg-address').value.trim(),
+                bloodGroup: document.getElementById('reg-blood').value,
+                aadhaar: document.getElementById('reg-aadhaar').value.trim(),
+                idProofType: document.getElementById('reg-idtype').value,
+                photo: photoBase64,
+
+                isBatsman:
+                    document.getElementById('reg-batsman').checked,
+
+                isBowler:
+                    document.getElementById('reg-bowler-role').checked,
+
+                battingStyle:
+                    battingStyle ? battingStyle.value : '',
+
+                bowlingArm:
+                    bowlingArm ? bowlingArm.value : '',
+
+                bowlingType:
+                    bowlingType ? bowlingType.value : '',
+
+                lowerSize:
+                    document.getElementById('reg-lowersize').value,
+
+                tshirtSize:
+                    document.getElementById('reg-tshirtsize').value,
+
+                jerseyNumber:
+                    document.getElementById('reg-jerseynum').value,
+
+                jerseyName:
+                    document.getElementById('reg-jerseyname').value.trim(),
+
+                event:
+                    document.getElementById('reg-event').value
+            };
+
+            /* Basic Aadhaar validation */
+            if (!/^\d{12}$/.test(formData.aadhaar)) {
+                statusEl.style.color = '#B5462F';
+                statusEl.textContent =
+                    'Please enter a valid 12-digit Aadhaar number.';
+                return;
+            }
+
+            if (!formData.event) {
+                statusEl.style.color = '#B5462F';
+                statusEl.textContent =
+                    'Please select Maudaha Premier League (MPL).';
+                return;
+            }
+
+            statusEl.style.color = '#4a4a45';
+            statusEl.textContent = 'Creating payment order...';
+
+            /* Step 1: Create Razorpay order */
+            let order;
+
+            try {
+                const orderRes = await fetch('/create-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: 70000,
+                        aadhaar: formData.aadhaar
+                    })
+                });
+
+                order = await orderRes.json();
+
+                if (!orderRes.ok) {
+                    statusEl.style.color = '#B5462F';
+                    statusEl.textContent =
+                        order.error || 'Could not create payment order.';
+                    return;
+                }
+
+            } catch (err) {
+                console.error(err);
+
+                statusEl.style.color = '#B5462F';
+                statusEl.textContent =
+                    'Could not reach the server. Please make sure Node.js is running.';
+                return;
+            }
+
+            /* Step 2: Open Razorpay */
+            if (!window.Razorpay) {
+                statusEl.style.color = '#B5462F';
+                statusEl.textContent =
+                    'Razorpay checkout could not be loaded. Check your internet connection.';
+                return;
+            }
+
+            const options = {
+                key: order.keyId,
+                amount: order.amount,
+                currency: order.currency,
+                order_id: order.id,
+
+                name:
+                    'Maulana Salim Jafri Sports & Mushaira Committee',
+
+                description:
+                    'MPL Registration - Maudaha Premier League',
+
+                prefill: {
+                    name: formData.name,
+                    email: formData.email,
+                    contact: formData.phone
+                },
+
+                handler: async function (response) {
+
+                    statusEl.style.color = '#4a4a45';
+                    statusEl.textContent =
+                        'Payment successful. Verifying registration...';
+
+                    try {
+
+                        const verifyRes = await fetch('/verify-payment', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id:
+                                    response.razorpay_order_id,
+
+                                razorpay_payment_id:
+                                    response.razorpay_payment_id,
+
+                                razorpay_signature:
+                                    response.razorpay_signature,
+
+                                formData
+                            })
+                        });
+
+                        const result = await verifyRes.json();
+
+                        if (result.success) {
+
+                            statusEl.style.color = '#16342B';
+
+                            statusEl.textContent =
+                                'Payment successful. MPL registration confirmed!';
+
+                            form.reset();
+
+                        } else {
+
+                            statusEl.style.color = '#B5462F';
+
+                            statusEl.textContent =
+                                result.message ||
+                                'Payment could not be verified.';
+
+                        }
+
+                    } catch (err) {
+
+                        console.error(err);
+
+                        statusEl.style.color = '#B5462F';
+
+                        statusEl.textContent =
+                            'Payment completed, but verification failed. Please contact the committee.';
+
+                    }
+                },
+
+                modal: {
+                    ondismiss: function () {
+
+                        statusEl.style.color = '#B5462F';
+
+                        statusEl.textContent =
+                            'Payment cancelled. Registration not submitted.';
+
+                    }
+                }
+            };
+
+            const rzp = new Razorpay(options);
+
+            rzp.on('payment.failed', function (response) {
+
+                console.error(response);
+
+                statusEl.style.color = '#B5462F';
+
+                statusEl.textContent =
+                    'Payment failed. Registration was not submitted.';
+
+            });
+
+            rzp.open();
+        });
+    </script>
+
+</body>
+
+</html>
