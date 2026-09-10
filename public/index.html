@@ -490,6 +490,16 @@
             background: transparent;
         }
 
+        /* Mobile browsers (Android especially) render the native date
+           picker taller than a normal text input, which throws off the
+           row it shares with Father's Name. Force it to match. */
+        input[type="date"] {
+            -webkit-appearance: none;
+            appearance: none;
+            height: 48px;
+            line-height: 1.2;
+        }
+
         .radio-group {
             display: flex;
             gap: 20px;
