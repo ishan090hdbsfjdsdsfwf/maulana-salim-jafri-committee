@@ -650,6 +650,22 @@ app.get(
                     }
                 </td>
 
+                <td>
+                    <form method="POST" action="/admin/delete-registration/${r.aadhaar}"
+                        onsubmit="return confirm('Delete registration for ${(r.name || '').replace(/'/g, "\\'")}? This cannot be undone.');"
+                        style="margin:0;">
+                        <button type="submit" style="
+                            background:#B5462F;
+                            color:#fff;
+                            border:none;
+                            padding:6px 12px;
+                            border-radius:4px;
+                            cursor:pointer;
+                            font-size:13px;
+                        ">Delete</button>
+                    </form>
+                </td>
+
             </tr>
 
         `).join('');
@@ -775,6 +791,7 @@ a.btn {
 <th>UTR</th>
 <th>Payment Status</th>
 <th>Date</th>
+<th>Action</th>
 
 </tr>
 
@@ -818,6 +835,33 @@ app.get(
 
             console.error('Error toggling registration status:', err);
             res.status(500).send('Could not update registration status.');
+        }
+    }
+);
+
+
+// ---------- Delete a registration ----------
+app.post(
+    '/admin/delete-registration/:aadhaar',
+    checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const { aadhaar } = req.params;
+
+            const deleted = await Registration.findByIdAndDelete(aadhaar);
+
+            if (!deleted) {
+                return res.status(404).send('Registration not found.');
+            }
+
+            res.redirect('/admin');
+
+        } catch (err) {
+
+            console.error('Error deleting registration:', err);
+            res.status(500).send('Could not delete registration.');
         }
     }
 );
@@ -1111,7 +1155,7 @@ app.get(
                         r.event || '',
 
                         r.photo ? `${baseUrl}/photo/${r.aadhaar}/player` : '',
-                        r.idProofPhoto ? `${baseUrl}/photo/${r.aadhaar}/idproof` : ''
+                        ''
 
                     ]
                         .map(field =>
