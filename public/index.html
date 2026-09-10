@@ -87,19 +87,6 @@
             padding: 80px 0;
         }
 
-        /* Recurring stitched-seam divider — a small nod to a
-           cricket ball's seam, used as connective tissue between
-           sections instead of a plain rule. */
-        .stitch {
-            height: 9px;
-            background-image:
-                repeating-linear-gradient(115deg, var(--clay) 0 2px, transparent 2px 11px),
-                repeating-linear-gradient(65deg, var(--clay) 0 2px, transparent 2px 11px);
-            background-size: 22px 9px;
-            background-repeat: repeat-x;
-            opacity: 0.55;
-        }
-
         /* ================= NAVBAR ================= */
 
         nav {
@@ -162,6 +149,38 @@
             color: var(--gold);
         }
 
+        .nav-toggle {
+            display: none;
+            flex-direction: column;
+            justify-content: center;
+            gap: 5px;
+            width: 40px;
+            height: 40px;
+            border: none;
+            background: transparent;
+            cursor: pointer;
+        }
+
+        .nav-toggle span {
+            display: block;
+            width: 22px;
+            height: 2px;
+            background: var(--ink);
+            transition: transform 0.2s ease, opacity 0.2s ease;
+        }
+
+        .nav-toggle[aria-expanded="true"] span:nth-child(1) {
+            transform: translateY(7px) rotate(45deg);
+        }
+
+        .nav-toggle[aria-expanded="true"] span:nth-child(2) {
+            opacity: 0;
+        }
+
+        .nav-toggle[aria-expanded="true"] span:nth-child(3) {
+            transform: translateY(-7px) rotate(-45deg);
+        }
+
         @media (max-width: 700px) {
             nav {
                 padding: 14px 18px;
@@ -180,8 +199,30 @@
                 max-width: 210px;
             }
 
+            .nav-toggle {
+                display: flex;
+            }
+
             .nav-links {
                 display: none;
+                position: absolute;
+                top: 100%;
+                left: 0;
+                right: 0;
+                flex-direction: column;
+                gap: 0;
+                background: var(--bone);
+                border-bottom: 1px solid var(--line);
+                padding: 8px 18px 18px;
+            }
+
+            .nav-links.open {
+                display: flex;
+            }
+
+            .nav-links a {
+                padding: 14px 0;
+                border-top: 1px solid var(--line);
             }
         }
 
@@ -213,11 +254,6 @@
             line-height: 1.12;
             max-width: 700px;
             color: var(--bone);
-        }
-
-        .hero .stitch {
-            max-width: 220px;
-            margin-top: 26px;
         }
 
         .hero p {
@@ -342,6 +378,11 @@
             background: var(--bone);
             padding: 36px 20px;
             text-align: center;
+            transition: background 0.2s ease;
+        }
+
+        .sport-tile:hover {
+            background: #fff;
         }
 
         .sport-tile svg {
@@ -349,6 +390,11 @@
             height: 34px;
             color: var(--clay);
             margin-bottom: 14px;
+            transition: transform 0.2s ease;
+        }
+
+        .sport-tile:hover svg {
+            transform: translateY(-2px);
         }
 
         .sport-tile h3 {
@@ -669,11 +715,51 @@
             font-size: 14px;
         }
 
+        .secure-note {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 6px;
+            margin-top: 12px;
+            font-size: 12px;
+            color: #6b6b64;
+        }
+
+        .secure-note svg {
+            width: 14px;
+            height: 14px;
+            flex-shrink: 0;
+        }
+
         #reg-status {
             margin-top: 16px;
             font-size: 14px;
             text-align: center;
-            min-height: 22px;
+            min-height: 0;
+        }
+
+        #reg-status:not(:empty) {
+            padding: 13px 16px;
+            border: 1px solid transparent;
+        }
+
+        #reg-status.status-error {
+            background: rgba(181, 70, 47, 0.08);
+            border-color: rgba(181, 70, 47, 0.28);
+            color: var(--clay);
+        }
+
+        #reg-status.status-success {
+            background: rgba(22, 52, 43, 0.07);
+            border-color: rgba(22, 52, 43, 0.25);
+            color: var(--green);
+            font-weight: 600;
+        }
+
+        #reg-status.status-info {
+            background: rgba(74, 74, 69, 0.07);
+            border-color: rgba(74, 74, 69, 0.2);
+            color: #4a4a45;
         }
 
         .registration-note {
@@ -771,12 +857,19 @@
             </span>
         </div>
 
-        <div class="nav-links">
+        <div class="nav-links" id="nav-links">
             <a href="#about">About</a>
             <a href="#events">Events</a>
             <a href="#register">Register</a>
             <a href="#contact">Contact</a>
         </div>
+
+        <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links"
+            aria-label="Toggle menu">
+            <span></span>
+            <span></span>
+            <span></span>
+        </button>
     </nav>
 
     <!-- ================= HERO ================= -->
@@ -790,8 +883,6 @@
                 You play.<br>
                 Everyone wins.
             </h1>
-
-            <div class="stitch" aria-hidden="true"></div>
 
             <p>
                 Maulana Salim Jafri Sports &amp; Mushaira Committee,
@@ -918,8 +1009,6 @@
         <div class="wrap">
 
             <h2>Upcoming Events</h2>
-
-            <div class="stitch" aria-hidden="true" style="max-width:220px; margin:18px 0 24px;"></div>
 
             <p class="events-intro">
                 Explore the major events organised by the Maulana Salim
@@ -1396,6 +1485,15 @@
                     Pay &amp; Confirm Registration
                 </button>
 
+                <div class="secure-note">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
+                        <rect x="5" y="11" width="14" height="9" rx="1.5" />
+                        <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
+                    </svg>
+                    Payments secured by Razorpay
+                </div>
+
                 <div id="reg-status"></div>
 
             </form>
@@ -1451,9 +1549,7 @@
 
         </div>
 
-        <div class="stitch" aria-hidden="true" style="max-width:1100px; margin:32px auto 0;"></div>
-
-        <div class="footer-bottom" style="border-top:none; margin-top:20px;">
+        <div class="footer-bottom" style="margin-top:20px;">
             &copy; 2026 Maulana Salim Jafri Sports &amp; Mushaira Committee.
             All rights reserved.
         </div>
@@ -1474,9 +1570,31 @@
     <!-- ================= JAVASCRIPT ================= -->
 
     <script>
+        /* Mobile nav menu */
+        const navToggle = document.getElementById('nav-toggle');
+        const navLinks = document.getElementById('nav-links');
+
+        navToggle.addEventListener('click', function () {
+            const isOpen = navLinks.classList.toggle('open');
+            navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+        });
+
+        navLinks.querySelectorAll('a').forEach(function (link) {
+            link.addEventListener('click', function () {
+                navLinks.classList.remove('open');
+                navToggle.setAttribute('aria-expanded', 'false');
+            });
+        });
+
         const form = document.getElementById('regForm');
         const statusEl = document.getElementById('reg-status');
         const closedBanner = document.getElementById('registration-closed-banner');
+
+        /* Shows the status banner in the right style (error / info / success) */
+        function setStatus(kind, message) {
+            statusEl.className = 'status-' + kind;
+            statusEl.textContent = message;
+        }
 
         // Check whether registration is open as soon as the page loads
         (async function checkRegistrationStatus() {
@@ -1513,8 +1631,7 @@
             const isBowler = document.getElementById('reg-bowler-role').checked;
 
             if (!isBatsman && !isBowler) {
-                statusEl.style.color = '#B5462F';
-                statusEl.textContent = 'Please select at least one playing role (Batsman or Bowler).';
+                setStatus('error', 'Please select at least one playing role (Batsman or Bowler).');
                 document.getElementById('reg-batsman').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
@@ -1599,31 +1716,24 @@
 
             /* Basic phone validation */
             if (!/^\d{10}$/.test(formData.phone)) {
-                statusEl.style.color = '#B5462F';
-                statusEl.textContent =
-                    'Please enter a valid 10-digit mobile number.';
+                setStatus('error', 'Please enter a valid 10-digit mobile number.');
                 document.getElementById('reg-phone').focus();
                 return;
             }
 
             /* Basic Aadhaar validation */
             if (!/^\d{12}$/.test(formData.aadhaar)) {
-                statusEl.style.color = '#B5462F';
-                statusEl.textContent =
-                    'Please enter a valid 12-digit Aadhaar number.';
+                setStatus('error', 'Please enter a valid 12-digit Aadhaar number.');
                 document.getElementById('reg-aadhaar').focus();
                 return;
             }
 
             if (!formData.event) {
-                statusEl.style.color = '#B5462F';
-                statusEl.textContent =
-                    'Please select Maudaha Premier League (MPL).';
+                setStatus('error', 'Please select Maudaha Premier League (MPL).');
                 return;
             }
 
-            statusEl.style.color = '#4a4a45';
-            statusEl.textContent = 'Creating payment order...';
+            setStatus('info', 'Creating payment order...');
 
             /* Step 1: Create Razorpay order */
             let order;
@@ -1643,26 +1753,20 @@
                 order = await orderRes.json();
 
                 if (!orderRes.ok) {
-                    statusEl.style.color = '#B5462F';
-                    statusEl.textContent =
-                        order.error || 'Could not create payment order.';
+                    setStatus('error', order.error || 'Could not create payment order.');
                     return;
                 }
 
             } catch (err) {
                 console.error(err);
 
-                statusEl.style.color = '#B5462F';
-                statusEl.textContent =
-                    'Could not reach the server. Please make sure Node.js is running.';
+                setStatus('error', 'Could not reach the server. Please make sure Node.js is running.');
                 return;
             }
 
             /* Step 2: Open Razorpay */
             if (!window.Razorpay) {
-                statusEl.style.color = '#B5462F';
-                statusEl.textContent =
-                    'Razorpay checkout could not be loaded. Check your internet connection.';
+                setStatus('error', 'Razorpay checkout could not be loaded. Check your internet connection.');
                 return;
             }
 
@@ -1686,9 +1790,7 @@
 
                 handler: async function (response) {
 
-                    statusEl.style.color = '#4a4a45';
-                    statusEl.textContent =
-                        'Payment successful. Verifying registration...';
+                    setStatus('info', 'Payment successful. Verifying registration...');
 
                     try {
 
@@ -1715,20 +1817,13 @@
 
                         if (result.success) {
 
-                            statusEl.style.color = '#16342B';
-
-                            statusEl.textContent =
-                                'Payment successful. MPL registration confirmed!';
+                            setStatus('success', 'Payment successful. MPL registration confirmed!');
 
                             form.reset();
 
                         } else {
 
-                            statusEl.style.color = '#B5462F';
-
-                            statusEl.textContent =
-                                result.message ||
-                                'Payment could not be verified.';
+                            setStatus('error', result.message || 'Payment could not be verified.');
 
                         }
 
@@ -1736,10 +1831,7 @@
 
                         console.error(err);
 
-                        statusEl.style.color = '#B5462F';
-
-                        statusEl.textContent =
-                            'Payment completed, but verification failed. Please contact the committee.';
+                        setStatus('error', 'Payment completed, but verification failed. Please contact the committee.');
 
                     }
                 },
@@ -1747,10 +1839,7 @@
                 modal: {
                     ondismiss: function () {
 
-                        statusEl.style.color = '#B5462F';
-
-                        statusEl.textContent =
-                            'Payment cancelled. Registration not submitted.';
+                        setStatus('error', 'Payment cancelled. Registration not submitted.');
 
                     }
                 }
@@ -1762,10 +1851,7 @@
 
                 console.error(response);
 
-                statusEl.style.color = '#B5462F';
-
-                statusEl.textContent =
-                    'Payment failed. Registration was not submitted.';
+                setStatus('error', 'Payment failed. Registration was not submitted.');
 
             });
 
