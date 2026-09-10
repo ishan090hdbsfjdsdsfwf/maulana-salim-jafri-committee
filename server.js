@@ -1188,14 +1188,14 @@ app.get(
                         '',
                         '',
                         '',
-                        r.aadhaar || '',
+                        '',
 
-                        r.fatherName || '',
-                        r.bloodGroup || '',
-                        r.idProofType || '',
-                        r.email || '',
-                        r.dob || '',
-                        r.event || '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
 
                         '',
                         ''
