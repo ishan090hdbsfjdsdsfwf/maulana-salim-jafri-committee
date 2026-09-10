@@ -108,7 +108,12 @@
             align-items: center;
             padding: 18px 30px;
             border-bottom: 1px solid var(--line);
-            background: var(--bone);
+            background: rgba(246, 243, 234, 0.92);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            position: sticky;
+            top: 0;
+            z-index: 50;
         }
 
         .logo {
@@ -183,7 +188,10 @@
         /* ================= HERO ================= */
 
         .hero {
-            background: var(--green);
+            background:
+                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(216, 163, 60, 0.16), transparent 60%),
+                radial-gradient(ellipse 700px 500px at 100% 100%, rgba(216, 163, 60, 0.07), transparent 55%),
+                var(--green);
             color: var(--bone);
             padding: 100px 24px 0;
             position: relative;
@@ -229,13 +237,22 @@
         .btn {
             display: inline-block;
             padding: 14px 28px;
-            font-size: 14px;
-            font-weight: 700;
+            font-size: 13px;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
+            letter-spacing: 0.06em;
             cursor: pointer;
             border: none;
-            transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+            transition: background 0.15s ease, border-color 0.15s ease,
+                color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
+        }
+
+        .btn:hover {
+            transform: translateY(-1px);
+        }
+
+        .btn:active {
+            transform: translateY(0);
         }
 
         .btn-gold {
@@ -261,37 +278,52 @@
 
         .stats-panel {
             background: var(--gold);
-            clip-path: polygon(0 12%, 100% 0, 100% 100%, 0 100%);
-            margin-top: 20px;
         }
 
         .stats-grid {
             display: grid;
             grid-template-columns: repeat(4, 1fr);
-            padding: 56px 24px 40px;
+            padding: 40px 24px;
             max-width: 1100px;
             margin: 0 auto;
-            gap: 24px;
+            gap: 0;
+        }
+
+        .stats-grid>div {
+            padding: 0 24px;
+            border-left: 1px solid rgba(14, 36, 30, 0.15);
+        }
+
+        .stats-grid>div:first-child {
+            border-left: none;
+            padding-left: 0;
         }
 
         .stat-num {
             font-family: 'Oswald', sans-serif;
-            font-size: 36px;
-            font-weight: 700;
+            font-size: 30px;
+            font-weight: 600;
+            letter-spacing: 0.01em;
             color: var(--green-dark);
         }
 
         .stat-label {
-            font-size: 12px;
+            font-size: 11px;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: var(--green-dark);
-            margin-top: 4px;
+            letter-spacing: 0.06em;
+            color: rgba(14, 36, 30, 0.72);
+            margin-top: 6px;
         }
 
         @media (max-width: 700px) {
             .stats-grid {
                 grid-template-columns: repeat(2, 1fr);
+                row-gap: 28px;
+            }
+
+            .stats-grid>div:nth-child(3) {
+                border-left: none;
+                padding-left: 0;
             }
         }
 
@@ -411,14 +443,23 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 28px 0;
+            padding: 32px 4px;
             border-bottom: 1px solid rgba(246, 243, 234, 0.15);
             flex-wrap: wrap;
             gap: 18px;
+            transition: padding-left 0.15s ease;
+        }
+
+        .event-row:hover {
+            padding-left: 12px;
         }
 
         .event-row h3 {
-            font-size: 23px;
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 25px;
             color: var(--bone);
         }
 
@@ -673,21 +714,29 @@
 
         .footer-grid h4 {
             color: var(--bone);
-            font-size: 13px;
+            font-size: 12px;
+            font-weight: 600;
             text-transform: uppercase;
-            letter-spacing: 0.04em;
-            margin-bottom: 14px;
+            letter-spacing: 0.08em;
+            margin-bottom: 16px;
         }
 
         .footer-grid p,
         .footer-grid a {
             font-size: 14px;
             display: block;
-            margin-bottom: 8px;
+            margin-bottom: 10px;
+        }
+
+        .footer-grid a {
+            width: fit-content;
+            border-bottom: 1px solid transparent;
+            transition: color 0.15s ease, border-color 0.15s ease;
         }
 
         .footer-grid a:hover {
             color: var(--gold);
+            border-color: rgba(216, 163, 60, 0.4);
         }
 
         .footer-bottom {
@@ -1035,7 +1084,8 @@
 
                         <label for="reg-phone">Mobile Number</label>
 
-                        <input type="tel" id="reg-phone" required placeholder="10-digit mobile number">
+                        <input type="tel" id="reg-phone" required inputmode="numeric" pattern="[0-9]{10}" maxlength="10"
+                            minlength="10" placeholder="10-digit mobile number">
 
                     </div>
 
@@ -1448,6 +1498,16 @@
         form.addEventListener('submit', async function (e) {
             e.preventDefault();
 
+            /* Check every required/pattern field on the form (name, DOB,
+               father's name, phone, address, Aadhaar, both photos, and
+               the batting/bowling radio groups). If anything is missing
+               or invalid, the browser shows its own message and jumps
+               straight to that field — nothing proceeds until it's fixed. */
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
+
             /* At least one playing role must be selected */
             const isBatsman = document.getElementById('reg-batsman').checked;
             const isBowler = document.getElementById('reg-bowler-role').checked;
@@ -1455,6 +1515,7 @@
             if (!isBatsman && !isBowler) {
                 statusEl.style.color = '#B5462F';
                 statusEl.textContent = 'Please select at least one playing role (Batsman or Bowler).';
+                document.getElementById('reg-batsman').scrollIntoView({ behavior: 'smooth', block: 'center' });
                 return;
             }
 
@@ -1536,11 +1597,21 @@
                     document.getElementById('reg-event').value
             };
 
+            /* Basic phone validation */
+            if (!/^\d{10}$/.test(formData.phone)) {
+                statusEl.style.color = '#B5462F';
+                statusEl.textContent =
+                    'Please enter a valid 10-digit mobile number.';
+                document.getElementById('reg-phone').focus();
+                return;
+            }
+
             /* Basic Aadhaar validation */
             if (!/^\d{12}$/.test(formData.aadhaar)) {
                 statusEl.style.color = '#B5462F';
                 statusEl.textContent =
                     'Please enter a valid 12-digit Aadhaar number.';
+                document.getElementById('reg-aadhaar').focus();
                 return;
             }
 
