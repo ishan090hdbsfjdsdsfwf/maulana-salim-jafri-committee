@@ -3,6 +3,7 @@ const path = require('path');
 const mongoose = require('mongoose');
 const crypto = require('crypto');
 const Razorpay = require('razorpay');
+const ExcelJS = require('exceljs');
 require('dotenv').config();
 
 const app = express();
@@ -1018,6 +1019,41 @@ app.get(
 );
 
 
+// ---------- Public candidate photo (no login) ----------
+// Used by the Cricauction app to load the player photo from the exported file.
+// Only the player's own photo is public here — the Aadhaar/ID proof photo
+// stays admin-only through the /photo/:aadhaar/:type route above.
+app.get('/player-photo/:aadhaar', async (req, res) => {
+
+    try {
+
+        const { aadhaar } = req.params;
+
+        const registration = await Registration.findById(aadhaar);
+
+        if (!registration || !registration.photo) {
+            return res.status(404).send('Photo not found.');
+        }
+
+        const match = registration.photo.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+
+        if (!match) {
+            return res.status(500).send('Photo data is in an unexpected format.');
+        }
+
+        const contentType = match[1];
+        const buffer = Buffer.from(match[2], 'base64');
+
+        res.setHeader('Content-Type', contentType);
+        res.send(buffer);
+
+    } catch (err) {
+        console.error('Error serving player photo:', err);
+        res.status(500).send('Could not load photo.');
+    }
+});
+
+
 // ---------- Cricauction export ----------
 app.get(
     '/admin/export-auction',
@@ -1114,32 +1150,39 @@ app.get(
                 );
             };
 
-            let csv =
-                header
-                    .map(h => `"${h}"`)
-                    .join(',') + '\n';
+            const workbook = new ExcelJS.Workbook();
+            const sheet = workbook.addWorksheet('Sheet1');
+
+            sheet.addRow(header);
 
             registrations.forEach(
                 (r, i) => {
 
-                    const row = [
+                    // Only one photo goes in the file — the candidate's own
+                    // photo, in the PHOTO column, via a link that doesn't
+                    // need admin login so the Cricauction app can load it.
+                    const photoUrl = r.photo
+                        ? `${baseUrl}/player-photo/${r.aadhaar}`
+                        : '';
+
+                    sheet.addRow([
 
                         i + 1,
-                        r.name,
-                        r.phone,
-                        r.photo ? `${baseUrl}/photo/${r.aadhaar}/player` : '',
+                        r.name || '',
+                        r.phone || '',
+                        photoUrl,
                         ageFromDob(r.dob),
                         skillFor(r),
-                        r.battingStyle,
-                        r.bowlingArm,
-                        r.bowlingType,
+                        r.battingStyle || '',
+                        r.bowlingArm || '',
+                        r.bowlingType || '',
 
                         '',
                         r.address || '',
-                        r.jerseyName,
-                        r.jerseyNumber,
-                        r.tshirtSize,
-                        r.lowerSize,
+                        r.jerseyName || '',
+                        r.jerseyNumber || '',
+                        r.tshirtSize || '',
+                        r.lowerSize || '',
 
                         '',
                         '',
@@ -1154,36 +1197,26 @@ app.get(
                         r.dob || '',
                         r.event || '',
 
-                        r.photo ? `${baseUrl}/photo/${r.aadhaar}/player` : '',
+                        '',
                         ''
 
-                    ]
-                        .map(field =>
-                            `"${(field ?? '')
-                                .toString()
-                                .replace(
-                                    /"/g,
-                                    '""'
-                                )}"`
-                        )
-                        .join(',');
-
-                    csv += row + '\n';
+                    ]);
 
                 }
             );
 
             res.setHeader(
                 'Content-Type',
-                'text/csv'
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
             );
 
             res.setHeader(
                 'Content-Disposition',
-                'attachment; filename=cricauction-upload.csv'
+                'attachment; filename=cricauction-upload.xlsx'
             );
 
-            res.send(csv);
+            await workbook.xlsx.write(res);
+            res.end();
 
         } catch (err) {
 
