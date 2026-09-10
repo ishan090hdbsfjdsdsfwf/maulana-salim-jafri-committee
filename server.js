@@ -1,2097 +1,1359 @@
+const express = require('express');
+const path = require('path');
+const mongoose = require('mongoose');
+const crypto = require('crypto');
+const Razorpay = require('razorpay');
+const ExcelJS = require('exceljs');
+const helmet = require('helmet');
+const rateLimit = require('express-rate-limit');
+require('dotenv').config();
+
+const app = express();
+
+
+// ---------- Crash safety net ----------
+// These catch anything that happens outside a normal request/response
+// (a stray error in a callback, a rejected promise nobody awaited, etc).
+// Without this, one of those can silently kill the whole Node process,
+// and Render has to restart it from scratch — which is exactly the
+// "please wait, backend is running" cold-start screen visitors hate.
+// We log it and keep the server running instead of crashing.
+process.on('uncaughtException', (err) => {
+    console.error('UNCAUGHT EXCEPTION — server kept running:', err);
+});
+
+process.on('unhandledRejection', (reason) => {
+    console.error('UNHANDLED PROMISE REJECTION — server kept running:', reason);
+});
+
+
+// ---------- Razorpay ----------
+let razorpay = null;
+
+if (
+    process.env.RAZORPAY_KEY_ID &&
+    process.env.RAZORPAY_KEY_SECRET
+) {
+    razorpay = new Razorpay({
+        key_id: process.env.RAZORPAY_KEY_ID,
+        key_secret: process.env.RAZORPAY_KEY_SECRET
+    });
+
+    console.log('Razorpay configured successfully');
+} else {
+    console.error(
+        'WARNING: Razorpay environment variables are missing.'
+    );
+}
+
+
+// ---------- Middleware ----------
+app.use(helmet({
+    // Razorpay's checkout opens its own popup/iframe and pulls in its
+    // own scripts — a default Content-Security-Policy would block that,
+    // so it's left off. Everything else Helmet sets (no-sniff,
+    // clickjacking protection, etc.) stays on.
+    contentSecurityPolicy: false
+}));
+
+app.use(express.json({ limit: '10mb' }));
+app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+app.use(express.static(path.join(__dirname, 'public')));
+
+// Generous general limit — stops a single source from hammering the
+// whole site (accidental infinite-loop scripts, scrapers, etc).
+const generalLimiter = rateLimit({
+    windowMs: 60 * 1000,
+    max: 100,
+    standardHeaders: true,
+    legacyHeaders: false
+});
+app.use(generalLimiter);
+
+// Tighter limit for the admin login — the main brute-force target,
+// since it's just a single password behind Basic Auth.
+const adminLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 20,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many attempts. Please try again later.'
+});
+
+// Tighter limit on registration + payment endpoints, so someone can't
+// spam fake registrations or hit Razorpay with a flood of order requests.
+const submitLimiter = rateLimit({
+    windowMs: 15 * 60 * 1000,
+    max: 15,
+    standardHeaders: true,
+    legacyHeaders: false,
+    message: 'Too many attempts. Please wait a bit and try again.'
+});
+
+// ---------- Concurrency guard ----------
+// The rate limiter above stops one visitor from spamming requests over
+// time. This guard protects against a different problem: too many
+// DIFFERENT visitors hitting the heavy endpoints (photo upload, payment
+// creation, payment verification) at the exact same moment. Render's
+// free instance only has 512MB RAM and a tenth of a CPU core, with no
+// auto-scaling — enough traffic at once can exhaust that and crash the
+// whole process. Instead of letting that happen, once too many of these
+// requests are in flight simultaneously, new ones get an immediate,
+// friendly "please wait" response instead of piling up and taking the
+// server down with them.
+const MAX_CONCURRENT_HEAVY_REQUESTS = 6;
+let activeHeavyRequests = 0;
+
+function concurrencyGuard(req, res, next) {
+
+    if (activeHeavyRequests >= MAX_CONCURRENT_HEAVY_REQUESTS) {
+        return res.status(503).json({
+            error: 'high_traffic',
+            message: 'The site is getting a lot of registrations right now. Please wait a moment and try again.',
+            retryAfterSeconds: 20
+        });
+    }
+
+    activeHeavyRequests++;
+
+    let released = false;
+
+    const release = () => {
+        if (!released) {
+            released = true;
+            activeHeavyRequests--;
+        }
+    };
+
+    res.on('finish', release);
+    res.on('close', release);
+
+    next();
+}
+
+// Serve the project-root index.html
+app.get('/', (req, res) => {
+    res.sendFile(path.join(__dirname, 'index.html'));
+});
+
+
+// ---------- MongoDB connection ----------
+console.log("========== MONGODB TEST ==========");
+console.log("MONGODB_URI exists:", !!process.env.MONGODB_URI);
+console.log("MONGODB_URI prefix:", process.env.MONGODB_URI?.substring(0, 20));
+
+mongoose.connect(process.env.MONGODB_URI)
+    .then(() => console.log("========== MongoDB connected =========="))
+    .catch(err => console.error("========== MongoDB ERROR ==========", err));
+// ---------- Registration schema ----------
+const registrationSchema = new mongoose.Schema({
+    _id: { type: String },
+
+    name: String,
+    dob: String,
+    fatherName: String,
+    email: String,
+    phone: String,
+    address: String,
+    bloodGroup: String,
+
+    aadhaar: {
+        type: String,
+        required: true,
+        unique: true
+    },
+
+    idProofType: String,
+    photo: String,
+    idProofPhoto: String,
+
+    isBatsman: Boolean,
+    isBowler: Boolean,
+
+    battingStyle: String,
+    bowlingArm: String,
+    bowlingType: String,
+
+    lowerSize: String,
+    tshirtSize: String,
+
+    jerseyNumber: String,
+    jerseyName: String,
+
+    event: String,
+
+    paymentAmount: {
+        type: Number,
+        default: 700
+    },
+
+    paymentMethod: {
+        type: String,
+        default: 'UPI QR'
+    },
+
+    paymentUtr: String,
+    paymentScreenshot: String,
+
+    razorpayOrderId: String,
+    razorpayPaymentId: String,
+    razorpaySignature: String,
+
+    paymentStatus: {
+        type: String,
+        default: 'Pending Verification'
+    },
+
+    createdAt: {
+        type: Date,
+        default: Date.now
+    }
+});
+
+
+const Registration = mongoose.model(
+    'Registration',
+    registrationSchema
+);
+
+
+// ---------- Settings (for registration open/closed toggle) ----------
+const settingsSchema = new mongoose.Schema({
+    _id: { type: String, default: 'main' },
+    registrationOpen: { type: Boolean, default: true }
+});
+
+const Settings = mongoose.model('Settings', settingsSchema);
+
+async function getSettings() {
+    let settings = await Settings.findById('main');
+    if (!settings) {
+        settings = await Settings.create({ _id: 'main', registrationOpen: true });
+    }
+    return settings;
+}
+
+// Public endpoint: frontend checks this before showing/allowing the form
+app.get('/registration-status', async (req, res) => {
+    try {
+        const settings = await getSettings();
+        res.json({ open: settings.registrationOpen });
+    } catch (err) {
+        console.error('Error fetching registration status:', err);
+        res.json({ open: true }); // fail open so a DB hiccup doesn't block real registrations
+    }
+});
+
+
+// ---------- Registration submission ----------
+app.post('/submit-registration', submitLimiter, concurrencyGuard, async (req, res) => {
+
+    try {
+
+        const settings = await getSettings();
+        if (!settings.registrationOpen) {
+            return res.status(403).json({
+                success: false,
+                message: 'Registration is currently closed.'
+            });
+        }
+
+        const formData = req.body;
+
+        if (!formData.aadhaar) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aadhaar number is required.'
+            });
+        }
+
+        if (!/^\d{12}$/.test(formData.aadhaar)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Please enter a valid 12-digit Aadhaar number.'
+            });
+        }
+
+        const existing = await Registration.findById(
+            formData.aadhaar
+        );
+
+        if (existing) {
+            return res.status(409).json({
+                success: false,
+                message: 'A registration with this Aadhaar number already exists.'
+            });
+        }
+
+        const registration = new Registration({
+
+            _id: formData.aadhaar,
+
+            name: formData.name,
+            dob: formData.dob,
+            fatherName: formData.fatherName,
+            email: formData.email,
+            phone: formData.phone,
+            address: formData.address,
+            bloodGroup: formData.bloodGroup,
+
+            aadhaar: formData.aadhaar,
+
+            idProofType: formData.idProofType,
+            photo: formData.photo,
+            idProofPhoto: formData.idProofPhoto,
+
+            isBatsman: formData.isBatsman,
+            isBowler: formData.isBowler,
+
+            battingStyle: formData.battingStyle,
+            bowlingArm: formData.bowlingArm,
+            bowlingType: formData.bowlingType,
+
+            lowerSize: formData.lowerSize,
+            tshirtSize: formData.tshirtSize,
+
+            jerseyNumber: formData.jerseyNumber,
+            jerseyName: formData.jerseyName,
+
+            event: formData.event,
+
+            paymentAmount: 700,
+            paymentMethod: 'UPI QR',
+
+            paymentUtr: formData.paymentUtr || '',
+            paymentScreenshot: formData.paymentScreenshot || '',
+
+            paymentStatus: 'Pending Verification'
+        });
+
+        await registration.save();
+
+        res.json({
+            success: true,
+            message: 'Registration submitted successfully.',
+            registrationId: registration._id
+        });
+
+    } catch (err) {
+
+        console.error('Registration error:', err);
+
+        if (err.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: 'This Aadhaar number is already registered.'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Registration could not be saved.'
+        });
+    }
+});
+
+
+// ---------- Razorpay order ----------
+app.post('/create-order', submitLimiter, concurrencyGuard, async (req, res) => {
+
+    try {
+
+        const settings = await getSettings();
+        if (!settings.registrationOpen) {
+            return res.status(403).json({
+                error: 'Registration is currently closed.'
+            });
+        }
+
+        if (!razorpay) {
+            return res.status(500).json({
+                error: 'Razorpay is not configured on the server.'
+            });
+        }
+
+        const aadhaar = String(
+            req.body.aadhaar || ''
+        ).trim();
+
+        if (!/^\d{12}$/.test(aadhaar)) {
+            return res.status(400).json({
+                error: 'Please enter a valid 12-digit Aadhaar number.'
+            });
+        }
+
+        const existing = await Registration.findById(aadhaar);
+
+        if (existing) {
+            return res.status(409).json({
+                error: 'A registration with this Aadhaar number already exists.'
+            });
+        }
+
+        // ₹700 = 70,000 paise
+        const amount = 70000;
+
+        const order = await razorpay.orders.create({
+            amount: amount,
+            currency: 'INR',
+            receipt: `MPL-${aadhaar}`,
+            notes: {
+                event: 'MPL Registration',
+                aadhaar: aadhaar
+            }
+        });
+
+        return res.json({
+            id: order.id,
+            amount: order.amount,
+            currency: order.currency,
+            keyId: process.env.RAZORPAY_KEY_ID
+        });
+
+    } catch (err) {
+
+        console.error(
+            'Razorpay order error:',
+            err
+        );
+
+        return res.status(500).json({
+            error: 'Could not create Razorpay payment order. Check the server logs.'
+        });
+    }
+});
+
+
+// ---------- Razorpay payment verification + registration save ----------
+app.post('/verify-payment', submitLimiter, concurrencyGuard, async (req, res) => {
+
+    try {
+
+        if (!razorpay) {
+            return res.status(500).json({
+                success: false,
+                message: 'Razorpay is not configured on the server.'
+            });
+        }
+
+        if (
+            !process.env.RAZORPAY_KEY_SECRET
+        ) {
+            return res.status(500).json({
+                success: false,
+                message: 'Razorpay secret is not configured on the server.'
+            });
+        }
+
+        const {
+            razorpay_order_id,
+            razorpay_payment_id,
+            razorpay_signature,
+            formData
+        } = req.body;
+
+        if (
+            !razorpay_order_id ||
+            !razorpay_payment_id ||
+            !razorpay_signature ||
+            !formData
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Incomplete payment verification data.'
+            });
+        }
+
+        const generatedSignature = crypto
+            .createHmac(
+                'sha256',
+                process.env.RAZORPAY_KEY_SECRET
+            )
+            .update(
+                `${razorpay_order_id}|${razorpay_payment_id}`
+            )
+            .digest('hex');
+
+        if (
+            generatedSignature !== razorpay_signature
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment verification failed.'
+            });
+        }
+
+        const razorpayOrder =
+            await razorpay.orders.fetch(
+                razorpay_order_id
+            );
+
+        if (
+            Number(razorpayOrder.amount) !== 70000 ||
+            razorpayOrder.currency !== 'INR'
+        ) {
+            return res.status(400).json({
+                success: false,
+                message: 'Payment amount could not be verified.'
+            });
+        }
+
+        const aadhaar = String(
+            formData.aadhaar || ''
+        ).trim();
+
+        if (!/^\d{12}$/.test(aadhaar)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Invalid Aadhaar number.'
+            });
+        }
+
+        const existing =
+            await Registration.findById(aadhaar);
+
+        if (existing) {
+            return res.status(409).json({
+                success: false,
+                message: 'A registration with this Aadhaar number already exists.'
+            });
+        }
+
+        const registration =
+            new Registration({
+
+                _id: aadhaar,
+
+                name: formData.name,
+                dob: formData.dob,
+                fatherName: formData.fatherName,
+                email: formData.email,
+                phone: formData.phone,
+                address: formData.address,
+                bloodGroup: formData.bloodGroup,
+
+                aadhaar: aadhaar,
+
+                idProofType: formData.idProofType,
+                photo: formData.photo,
+                idProofPhoto: formData.idProofPhoto,
+
+                isBatsman: formData.isBatsman,
+                isBowler: formData.isBowler,
+
+                battingStyle: formData.battingStyle,
+                bowlingArm: formData.bowlingArm,
+                bowlingType: formData.bowlingType,
+
+                lowerSize: formData.lowerSize,
+                tshirtSize: formData.tshirtSize,
+
+                jerseyNumber: formData.jerseyNumber,
+                jerseyName: formData.jerseyName,
+
+                event: formData.event,
+
+                paymentAmount: 700,
+                paymentMethod: 'Razorpay',
+
+                razorpayOrderId:
+                    razorpay_order_id,
+
+                razorpayPaymentId:
+                    razorpay_payment_id,
+
+                razorpaySignature:
+                    razorpay_signature,
+
+                paymentStatus: 'Paid'
+            });
+
+        await registration.save();
+
+        return res.json({
+            success: true,
+            message: 'Payment successful. MPL registration confirmed!',
+            registrationId: registration._id
+        });
+
+    } catch (err) {
+
+        console.error(
+            'Payment verification/registration error:',
+            err
+        );
+
+        if (err.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: 'This Aadhaar number is already registered.'
+            });
+        }
+
+        return res.status(500).json({
+            success: false,
+            message: 'Payment was received, but registration could not be saved. Please contact the committee.'
+        });
+    }
+});
+
+
+// ---------- Admin authentication ----------
+function checkAdminAuth(req, res, next) {
+
+    const auth = req.headers.authorization;
+
+    if (
+        !auth ||
+        !auth.startsWith('Basic ')
+    ) {
+
+        res.set(
+            'WWW-Authenticate',
+            'Basic realm="Admin"'
+        );
+
+        return res.status(401).send(
+            'Login required'
+        );
+    }
+
+    const decoded = Buffer
+        .from(
+            auth.split(' ')[1],
+            'base64'
+        )
+        .toString();
+
+    const separatorIndex =
+        decoded.indexOf(':');
+
+    if (separatorIndex === -1) {
+        return res.status(401).send(
+            'Wrong username or password'
+        );
+    }
+
+    const user =
+        decoded.substring(
+            0,
+            separatorIndex
+        );
+
+    const pass =
+        decoded.substring(
+            separatorIndex + 1
+        );
+
+    if (
+        user === process.env.ADMIN_USER &&
+        pass === process.env.ADMIN_PASSWORD
+    ) {
+        return next();
+    }
+
+    res.set(
+        'WWW-Authenticate',
+        'Basic realm="Admin"'
+    );
+
+    return res.status(401).send(
+        'Wrong username or password'
+    );
+}
+
+
+// ---------- Admin page ----------
+app.get(
+    '/admin',
+    adminLimiter, checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const settings = await getSettings();
+
+            const registrations =
+                await Registration.find()
+                    .sort({ createdAt: -1 });
+
+            const rows =
+                registrations.map(r => `
+
+            <tr>
+
+                <td>
+                    ${r.photo
+                        ? `<img src="${r.photo}"
+                                style="width:40px;height:40px;
+                                object-fit:cover;
+                                border-radius:4px;">`
+                        : ''
+                    }
+                </td>
+
+                <td>
+                    ${r.idProofPhoto
+                        ? `<a href="${r.idProofPhoto}" target="_blank"><img src="${r.idProofPhoto}"
+                                style="width:40px;height:40px;
+                                object-fit:cover;
+                                border-radius:4px;"></a>`
+                        : ''
+                    }
+                </td>
+
+                <td>${r.name || ''}</td>
+                <td>${r.dob || ''}</td>
+                <td>${r.fatherName || ''}</td>
+                <td>${r.phone || ''}</td>
+                <td>${r.email || ''}</td>
+                <td>${r.bloodGroup || ''}</td>
+
+                <td>
+                    ${[
+                        r.isBatsman
+                            ? 'Batsman'
+                            : '',
+                        r.isBowler
+                            ? 'Bowler'
+                            : ''
+                    ]
+                        .filter(Boolean)
+                        .join(', ')
+                    }
+                </td>
+
+                <td>${r.battingStyle || ''}</td>
+                <td>${r.bowlingType || ''}</td>
+
+                <td>
+                    ${r.jerseyNumber || ''}
+                    ${r.jerseyName || ''}
+                </td>
+
+                <td>${r.event || ''}</td>
+
+                <td>₹${r.paymentAmount || 700}</td>
+
+                <td>${r.paymentUtr || ''}</td>
+
+                <td>${r.paymentStatus || ''}</td>
+
+                <td>
+                    ${r.createdAt
+                        ? new Date(
+                            r.createdAt
+                        ).toLocaleString()
+                        : ''
+                    }
+                </td>
+
+                <td>
+                    <form method="POST" action="/admin/delete-registration/${r.aadhaar}"
+                        onsubmit="return confirm('Delete registration for ${(r.name || '').replace(/'/g, "\\'")}? This cannot be undone.');"
+                        style="margin:0;">
+                        <button type="submit" style="
+                            background:#B5462F;
+                            color:#fff;
+                            border:none;
+                            padding:6px 12px;
+                            border-radius:4px;
+                            cursor:pointer;
+                            font-size:13px;
+                        ">Delete</button>
+                    </form>
+                </td>
+
+            </tr>
+
+        `).join('');
+
+
+            res.send(`
+
 <!DOCTYPE html>
-<html lang="en">
+
+<html>
 
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
-    <title>Maulana Salim Jafri Sports & Mushaira Committee, Maudaha</title>
+<title>Registrations</title>
+
+<style>
+
+body {
+    font-family: Arial, sans-serif;
+    padding: 24px;
+}
+
+table {
+    border-collapse: collapse;
+    width: 100%;
+    margin-top: 16px;
+}
+
+th,
+td {
+    border: 1px solid #ccc;
+    padding: 8px 12px;
+    text-align: left;
+    font-size: 14px;
+}
+
+th {
+    background: #16342B;
+    color: white;
+}
+
+tr:nth-child(even) {
+    background: #f6f3ea;
+}
+
+a.btn {
+    display: inline-block;
+    margin-top: 16px;
+    padding: 10px 18px;
+    background: #D8A33C;
+    color: #0E241E;
+    text-decoration: none;
+    font-weight: bold;
+}
+
+</style>
 
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link
-        href="https://fonts.googleapis.com/css2?family=Oswald:wght@400;500;600;700&family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=Inter:wght@400;500;600&display=swap"
-        rel="stylesheet">
-
-    <!-- Razorpay checkout -->
-    <script src="https://checkout.razorpay.com/v1/checkout.js"></script>
-
-    <style>
-        :root {
-            --green: #16342B;
-            --green-dark: #0E241E;
-            --gold: #D8A33C;
-            --bone: #F6F3EA;
-            --ink: #1B1B18;
-            --clay: #B5462F;
-            --line: rgba(27, 27, 24, 0.15);
-        }
-
-        * {
-            box-sizing: border-box;
-            margin: 0;
-            padding: 0;
-        }
-
-        html {
-            scroll-behavior: smooth;
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-            html {
-                scroll-behavior: auto;
-            }
-
-            * {
-                transition: none !important;
-                animation: none !important;
-            }
-        }
-
-        body {
-            font-family: 'Inter', sans-serif;
-            background: var(--bone);
-            color: var(--ink);
-            line-height: 1.6;
-        }
-
-        h2,
-        h3,
-        .display {
-            font-family: 'Oswald', sans-serif;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.01em;
-            line-height: 1.05;
-        }
-
-        a {
-            color: inherit;
-            text-decoration: none;
-        }
-
-        a:focus-visible,
-        button:focus-visible,
-        input:focus-visible,
-        select:focus-visible {
-            outline: 2px solid var(--gold);
-            outline-offset: 2px;
-        }
-
-        .wrap {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding: 0 24px;
-        }
-
-        section {
-            padding: 80px 0;
-        }
-
-        /* ================= NAVBAR ================= */
-
-        nav {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 18px 30px;
-            border-bottom: 1px solid var(--line);
-            background: rgba(246, 243, 234, 0.92);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            position: sticky;
-            top: 0;
-            z-index: 50;
-        }
-
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-            font-family: 'Oswald', sans-serif;
-            font-weight: 700;
-            font-size: 15px;
-            text-transform: uppercase;
-            letter-spacing: 0.02em;
-            line-height: 1.2;
-        }
-
-        .logo img {
-            height: 54px;
-            width: 54px;
-            border-radius: 50%;
-            object-fit: cover;
-            flex-shrink: 0;
-        }
-
-        .logo-text {
-            max-width: 280px;
-        }
-
-        .logo-text .committee {
-            display: block;
-        }
-
-        .logo-text .place {
-            display: block;
-            color: var(--gold);
-            font-size: 12px;
-            margin-top: 3px;
-        }
-
-        .nav-links {
-            display: flex;
-            gap: 30px;
-            font-size: 14px;
-            font-weight: 600;
-        }
-
-        .nav-links a:hover {
-            color: var(--gold);
-        }
-
-        .nav-toggle {
-            display: none;
-            flex-direction: column;
-            justify-content: center;
-            gap: 5px;
-            width: 40px;
-            height: 40px;
-            border: none;
-            background: transparent;
-            cursor: pointer;
-        }
-
-        .nav-toggle span {
-            display: block;
-            width: 22px;
-            height: 2px;
-            background: var(--ink);
-            transition: transform 0.2s ease, opacity 0.2s ease;
-        }
-
-        .nav-toggle[aria-expanded="true"] span:nth-child(1) {
-            transform: translateY(7px) rotate(45deg);
-        }
-
-        .nav-toggle[aria-expanded="true"] span:nth-child(2) {
-            opacity: 0;
-        }
-
-        .nav-toggle[aria-expanded="true"] span:nth-child(3) {
-            transform: translateY(-7px) rotate(-45deg);
-        }
-
-        @media (max-width: 700px) {
-            nav {
-                padding: 14px 18px;
-            }
-
-            .logo {
-                font-size: 12px;
-            }
-
-            .logo img {
-                width: 44px;
-                height: 44px;
-            }
-
-            .logo-text {
-                max-width: 210px;
-            }
-
-            .nav-toggle {
-                display: flex;
-            }
-
-            .nav-links {
-                display: none;
-                position: absolute;
-                top: 100%;
-                left: 0;
-                right: 0;
-                flex-direction: column;
-                gap: 0;
-                background: var(--bone);
-                border-bottom: 1px solid var(--line);
-                padding: 8px 18px 18px;
-            }
-
-            .nav-links.open {
-                display: flex;
-            }
-
-            .nav-links a {
-                padding: 14px 0;
-                border-top: 1px solid var(--line);
-            }
-        }
-
-        /* ================= HERO ================= */
-
-        .hero {
-            background:
-                radial-gradient(ellipse 900px 500px at 15% -10%, rgba(216, 163, 60, 0.16), transparent 60%),
-                radial-gradient(ellipse 700px 500px at 100% 100%, rgba(216, 163, 60, 0.07), transparent 55%),
-                var(--green);
-            color: var(--bone);
-            padding: 100px 24px 0;
-            position: relative;
-            overflow: hidden;
-        }
-
-        .hero-inner {
-            max-width: 1100px;
-            margin: 0 auto;
-            padding-bottom: 65px;
-        }
-
-        .hero h1 {
-            font-family: 'Fraunces', serif;
-            font-weight: 500;
-            text-transform: none;
-            letter-spacing: 0;
-            font-size: clamp(40px, 6.4vw, 68px);
-            line-height: 1.12;
-            max-width: 700px;
-            color: var(--bone);
-        }
-
-        .hero p {
-            max-width: 560px;
-            font-size: 17px;
-            margin-top: 22px;
-            color: rgba(246, 243, 234, 0.82);
-        }
-
-        .hero-ctas {
-            display: flex;
-            gap: 16px;
-            margin-top: 32px;
-            flex-wrap: wrap;
-        }
-
-        .btn {
-            display: inline-block;
-            padding: 14px 28px;
-            font-size: 13px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            cursor: pointer;
-            border: none;
-            transition: background 0.15s ease, border-color 0.15s ease,
-                color 0.15s ease, transform 0.15s ease, box-shadow 0.15s ease;
-        }
-
-        .btn:hover {
-            transform: translateY(-1px);
-        }
-
-        .btn:active {
-            transform: translateY(0);
-        }
-
-        .btn-gold {
-            background: var(--gold);
-            color: var(--green-dark);
-        }
-
-        .btn-gold:hover {
-            background: #c4922f;
-        }
-
-        .btn-outline {
-            background: transparent;
-            border: 1px solid rgba(246, 243, 234, 0.5);
-            color: var(--bone);
-        }
-
-        .btn-outline:hover {
-            border-color: var(--bone);
-        }
-
-        /* ================= STATS ================= */
-
-        .stats-panel {
-            background: var(--gold);
-        }
-
-        .stats-grid {
-            display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            padding: 40px 24px;
-            max-width: 1100px;
-            margin: 0 auto;
-            gap: 0;
-        }
-
-        .stats-grid>div {
-            padding: 0 24px;
-            border-left: 1px solid rgba(14, 36, 30, 0.15);
-        }
-
-        .stats-grid>div:first-child {
-            border-left: none;
-            padding-left: 0;
-        }
-
-        .stat-num {
-            font-family: 'Oswald', sans-serif;
-            font-size: 30px;
-            font-weight: 600;
-            letter-spacing: 0.01em;
-            color: var(--green-dark);
-        }
-
-        .stat-label {
-            font-size: 11px;
-            text-transform: uppercase;
-            letter-spacing: 0.06em;
-            color: rgba(14, 36, 30, 0.72);
-            margin-top: 6px;
-        }
-
-        @media (max-width: 700px) {
-            .stats-grid {
-                grid-template-columns: repeat(2, 1fr);
-                row-gap: 28px;
-            }
-
-            .stats-grid>div:nth-child(3) {
-                border-left: none;
-                padding-left: 0;
-            }
-        }
-
-        /* ================= SPORTS ================= */
-
-        .sports-strip {
-            display: grid;
-            grid-template-columns: repeat(3, 1fr);
-            gap: 1px;
-            background: var(--line);
-            border: 1px solid var(--line);
-            margin-top: 60px;
-        }
-
-        .sport-tile {
-            background: var(--bone);
-            padding: 36px 20px;
-            text-align: center;
-            transition: background 0.2s ease;
-        }
-
-        .sport-tile:hover {
-            background: #fff;
-        }
-
-        .sport-tile svg {
-            width: 34px;
-            height: 34px;
-            color: var(--clay);
-            margin-bottom: 14px;
-            transition: transform 0.2s ease;
-        }
-
-        .sport-tile:hover svg {
-            transform: translateY(-2px);
-        }
-
-        .sport-tile h3 {
-            font-size: 21px;
-        }
-
-        .sport-tile .tag {
-            font-size: 12px;
-            color: var(--clay);
-            margin-top: 8px;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-        }
-
-        .urdu-tag {
-            font-size: 17px;
-            color: var(--green);
-            margin-top: 4px;
-            opacity: 0.75;
-        }
-
-        @media (max-width: 700px) {
-            .sports-strip {
-                grid-template-columns: 1fr;
-            }
-        }
-
-        /* ================= ABOUT ================= */
-
-        .about {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 60px;
-            align-items: start;
-        }
-
-        .about h2 {
-            font-size: 34px;
-            margin-bottom: 20px;
-        }
-
-        .about p {
-            max-width: 520px;
-            color: #4a4a45;
-        }
-
-        .about-side {
-            border-left: 2px solid var(--gold);
-            padding-left: 24px;
-        }
-
-        .about-side h3 {
-            font-size: 22px;
-            margin-bottom: 14px;
-        }
-
-        .about-side p {
-            font-size: 14px;
-        }
-
-        @media (max-width: 700px) {
-            .about {
-                grid-template-columns: 1fr;
-                gap: 35px;
-            }
-
-            .about-side {
-                border-left: none;
-                border-top: 2px solid var(--gold);
-                padding-left: 0;
-                padding-top: 20px;
-            }
-        }
-
-        /* ================= EVENTS ================= */
-
-        .events {
-            background: var(--green-dark);
-            color: var(--bone);
-        }
-
-        .events h2 {
-            font-size: 34px;
-            margin-bottom: 12px;
-        }
-
-        .events-intro {
-            color: rgba(246, 243, 234, 0.7);
-            max-width: 650px;
-            margin-bottom: 36px;
-        }
-
-        .event-list {
-            display: flex;
-            flex-direction: column;
-        }
-
-        .event-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 32px 4px;
-            border-bottom: 1px solid rgba(246, 243, 234, 0.15);
-            flex-wrap: wrap;
-            gap: 18px;
-            transition: padding-left 0.15s ease;
-        }
-
-        .event-row:hover {
-            padding-left: 12px;
-        }
-
-        .event-row h3 {
-            font-family: 'Fraunces', serif;
-            font-weight: 500;
-            text-transform: none;
-            letter-spacing: 0;
-            font-size: 25px;
-            color: var(--bone);
-        }
-
-        .event-row .loc {
-            font-size: 13px;
-            color: rgba(246, 243, 234, 0.6);
-            margin-top: 6px;
-        }
-
-        .event-row .event-type {
-            display: inline-block;
-            margin-top: 8px;
-            font-size: 11px;
-            color: var(--gold);
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-        }
-
-        .event-row .btn-outline {
-            padding: 10px 20px;
-            font-size: 12px;
-        }
-
-        .info-only {
-            color: var(--gold);
-            font-size: 12px;
-            font-weight: 700;
-            text-transform: uppercase;
-            letter-spacing: 0.05em;
-        }
-
-        /* ================= REGISTRATION ================= */
-
-        .register {
-            background: var(--bone);
-        }
-
-        .register-panel {
-            position: relative;
-            border: 1px solid var(--line);
-            padding: 48px;
-            max-width: 720px;
-            margin: 0 auto;
-        }
-
-        .register-panel::before,
-        .register-panel::after,
-        .register-panel .corner {
-            content: '';
-            position: absolute;
-            width: 22px;
-            height: 22px;
-            pointer-events: none;
-        }
-
-        .register-panel::before {
-            top: -1px;
-            left: -1px;
-            border-top: 3px solid var(--gold);
-            border-left: 3px solid var(--gold);
-        }
-
-        .register-panel::after {
-            bottom: -1px;
-            right: -1px;
-            border-bottom: 3px solid var(--gold);
-            border-right: 3px solid var(--gold);
-        }
-
-        .register-panel .corner.tr {
-            top: -1px;
-            right: -1px;
-            border-top: 3px solid var(--gold);
-            border-right: 3px solid var(--gold);
-        }
-
-        .register-panel .corner.bl {
-            bottom: -1px;
-            left: -1px;
-            border-bottom: 3px solid var(--gold);
-            border-left: 3px solid var(--gold);
-        }
-
-        .register h2 {
-            font-size: 32px;
-            text-align: center;
-            margin-bottom: 8px;
-        }
-
-        .register .sub {
-            text-align: center;
-            color: #4a4a45;
-            font-size: 14px;
-            margin-bottom: 32px;
-        }
-
-        .section-label {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.04em;
-            color: var(--gold);
-            font-weight: 700;
-            margin: 28px 0 12px;
-            border-top: 1px solid var(--line);
-            padding-top: 20px;
-        }
-
-        .section-label:first-of-type {
-            border-top: none;
-            margin-top: 0;
-            padding-top: 0;
-        }
-
-        .field-row {
-            display: grid;
-            grid-template-columns: 1fr 1fr;
-            gap: 16px;
-        }
-
-        .field {
-            margin-bottom: 20px;
-        }
-
-        label {
-            display: block;
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 0.03em;
-            margin-bottom: 6px;
-            color: #4a4a45;
-        }
-
-        input,
-        select {
-            width: 100%;
-            padding: 12px 14px;
-            font-size: 15px;
-            font-family: 'Inter', sans-serif;
-            border: 1px solid var(--line);
-            background: #fff;
-            color: var(--ink);
-        }
-
-        input:focus,
-        select:focus {
-            outline: 2px solid var(--gold);
-            outline-offset: 1px;
-        }
-
-        input[type="file"] {
-            padding: 8px 0;
-            border: none;
-            background: transparent;
-        }
-
-        /* Mobile browsers (Android especially) render the native date
-           picker taller than a normal text input, which throws off the
-           row it shares with Father's Name. Force it to match. */
-        input[type="date"] {
-            -webkit-appearance: none;
-            appearance: none;
-            height: 48px;
-            line-height: 1.2;
-        }
-
-        .radio-group {
-            display: flex;
-            gap: 20px;
-            margin-top: 4px;
-            flex-wrap: wrap;
-        }
-
-        .radio-group label {
-            display: flex;
-            align-items: center;
-            gap: 6px;
-            text-transform: none;
-            font-size: 14px;
-            color: var(--ink);
-            margin-bottom: 0;
-        }
-
-        .radio-group input {
-            width: auto;
-        }
-
-        .fee-row {
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            padding: 14px 0;
-            border-top: 1px solid var(--line);
-            border-bottom: 1px solid var(--line);
-            margin-bottom: 24px;
-            font-size: 14px;
-        }
-
-        .fee-amt {
-            font-family: 'Oswald', sans-serif;
-            font-size: 22px;
-            font-weight: 700;
-        }
-
-        .btn-pay {
-            width: 100%;
-            padding: 16px;
-            font-size: 14px;
-        }
-
-        .secure-note {
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            gap: 6px;
-            margin-top: 12px;
-            font-size: 12px;
-            color: #6b6b64;
-        }
-
-        .secure-note svg {
-            width: 14px;
-            height: 14px;
-            flex-shrink: 0;
-        }
-
-        #reg-status {
-            margin-top: 16px;
-            font-size: 14px;
-            text-align: center;
-            min-height: 0;
-        }
-
-        #reg-status:not(:empty) {
-            padding: 13px 16px;
-            border: 1px solid transparent;
-        }
-
-        #reg-status.status-error {
-            background: rgba(181, 70, 47, 0.08);
-            border-color: rgba(181, 70, 47, 0.28);
-            color: var(--clay);
-        }
-
-        #reg-status.status-success {
-            background: rgba(22, 52, 43, 0.07);
-            border-color: rgba(22, 52, 43, 0.25);
-            color: var(--green);
-            font-weight: 600;
-        }
-
-        /* Celebratory confirmation shown once payment is verified —
-           the one moment on the site worth making memorable. */
-        #reg-status.status-success-card {
-            background: rgba(22, 52, 43, 0.07);
-            border-color: rgba(22, 52, 43, 0.25);
-            padding: 28px 16px;
-        }
-
-        .success-card {
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            gap: 10px;
-        }
-
-        .success-check {
-            width: 50px;
-            height: 50px;
-        }
-
-        .success-check circle {
-            stroke: var(--green);
-            stroke-width: 2;
-            fill: none;
-            stroke-dasharray: 166;
-            stroke-dashoffset: 166;
-            animation: draw-circle 0.5s ease forwards;
-        }
-
-        .success-check path {
-            stroke: var(--green);
-            stroke-width: 3;
-            fill: none;
-            stroke-linecap: round;
-            stroke-linejoin: round;
-            stroke-dasharray: 48;
-            stroke-dashoffset: 48;
-            animation: draw-check 0.3s ease forwards 0.5s;
-        }
-
-        @keyframes draw-circle {
-            to {
-                stroke-dashoffset: 0;
-            }
-        }
-
-        @keyframes draw-check {
-            to {
-                stroke-dashoffset: 0;
-            }
-        }
-
-        @media (prefers-reduced-motion: reduce) {
-
-            .success-check circle,
-            .success-check path {
-                stroke-dashoffset: 0;
-            }
-        }
-
-        .success-card h3 {
-            font-family: 'Fraunces', serif;
-            font-weight: 500;
-            text-transform: none;
-            letter-spacing: 0;
-            font-size: 22px;
-            color: var(--green);
-        }
-
-        .success-card p {
-            font-size: 14px;
-            color: #4a4a45;
-            max-width: 360px;
-        }
-
-        #reg-status.status-info {
-            background: rgba(74, 74, 69, 0.07);
-            border-color: rgba(74, 74, 69, 0.2);
-            color: #4a4a45;
-        }
-
-        .registration-note {
-            margin-top: 20px;
-            padding: 14px;
-            background: rgba(216, 163, 60, 0.10);
-            border-left: 3px solid var(--gold);
-            font-size: 13px;
-            color: #4a4a45;
-        }
-
-        @media (max-width: 600px) {
-            .register-panel {
-                padding: 28px 20px;
-            }
-
-            .field-row {
-                grid-template-columns: 1fr;
-                gap: 0;
-            }
-        }
-
-        /* ================= FOOTER ================= */
-
-        footer {
-            background: var(--ink);
-            color: rgba(246, 243, 234, 0.7);
-            padding: 48px 24px 24px;
-        }
-
-        .footer-grid {
-            display: grid;
-            grid-template-columns: 2fr 1fr 1fr;
-            gap: 40px;
-            max-width: 1100px;
-            margin: 0 auto;
-        }
-
-        .footer-grid h4 {
-            color: var(--bone);
-            font-size: 12px;
-            font-weight: 600;
-            text-transform: uppercase;
-            letter-spacing: 0.08em;
-            margin-bottom: 16px;
-        }
-
-        .footer-grid p,
-        .footer-grid a {
-            font-size: 14px;
-            display: block;
-            margin-bottom: 10px;
-        }
-
-        .footer-grid a {
-            width: fit-content;
-            border-bottom: 1px solid transparent;
-            transition: color 0.15s ease, border-color 0.15s ease;
-        }
-
-        .footer-grid a:hover {
-            color: var(--gold);
-            border-color: rgba(216, 163, 60, 0.4);
-        }
-
-        .footer-bottom {
-            max-width: 1100px;
-            margin: 32px auto 0;
-            padding-top: 20px;
-            border-top: 1px solid rgba(246, 243, 234, 0.1);
-            font-size: 12px;
-        }
-
-        @media (max-width: 700px) {
-            .footer-grid {
-                grid-template-columns: 1fr;
-            }
-        }
-    </style>
 </head>
 
 <body>
 
-    <!-- ================= NAVBAR ================= -->
-
-    <nav>
-        <div class="logo">
-            <img src="assets/logo.jpeg" alt="Maulana Salim Jafri Sports & Mushaira Committee logo">
-
-            <span class="logo-text">
-                <span class="committee">
-                    Maulana Salim Jafri Sports &amp; Mushaira Committee
-                </span>
-                <span class="place">Maudaha</span>
-            </span>
-        </div>
-
-        <div class="nav-links" id="nav-links">
-            <a href="#about">About</a>
-            <a href="#events">Events</a>
-            <a href="#register">Register</a>
-            <a href="#contact">Contact</a>
-        </div>
-
-        <button class="nav-toggle" id="nav-toggle" aria-expanded="false" aria-controls="nav-links"
-            aria-label="Toggle menu">
-            <span></span>
-            <span></span>
-            <span></span>
-        </button>
-    </nav>
-
-    <!-- ================= HERO ================= -->
-
-    <div class="hero">
-
-        <div class="hero-inner">
-
-            <h1>
-                We organize.<br>
-                You play.<br>
-                Everyone wins.
-            </h1>
-
-            <p>
-                Maulana Salim Jafri Sports &amp; Mushaira Committee,
-                Maudaha brings people together through sports, cricket
-                tournaments, Mushaira and community events.
-            </p>
-
-            <div class="hero-ctas">
-                <a href="#events" class="btn btn-gold">
-                    View upcoming events
-                </a>
-
-                <a href="#register" class="btn btn-outline">
-                    Register for MPL
-                </a>
-            </div>
-
-        </div>
-
-        <div class="stats-panel">
-            <div class="stats-grid">
-
-                <div>
-                    <div class="stat-num">Cricket</div>
-                    <div class="stat-label">Maudaha Premier League</div>
-                </div>
-
-                <div>
-                    <div class="stat-num">Poetry</div>
-                    <div class="stat-label">All India Mushaira</div>
-                </div>
-
-                <div>
-                    <div class="stat-num">Hockey</div>
-                    <div class="stat-label">All India Hockey</div>
-                </div>
-
-                <div>
-                    <div class="stat-num">2026</div>
-                    <div class="stat-label">Season</div>
-                </div>
-
-            </div>
-        </div>
-
-    </div>
-
-    <!-- ================= SPORTS / EVENTS STRIP ================= -->
-
-    <div class="wrap">
-
-        <div class="sports-strip">
-
-            <div class="sport-tile">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                    aria-hidden="true">
-                    <circle cx="18.5" cy="5.5" r="2" />
-                    <path d="M16.8 7.2 7 17a2 2 0 0 0 0 2.8v0a2 2 0 0 0 2.8 0L19.6 10" />
-                    <path d="M6 18 4 20" />
-                </svg>
-                <h3>MPL</h3>
-                <div class="tag">Maudaha Premier League</div>
-            </div>
-
-            <div class="sport-tile">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                    stroke-linejoin="round" aria-hidden="true">
-                    <path d="M12 6.5c-2-1.2-4.6-1.6-7-1.2v12.4c2.4-.4 5 0 7 1.2" />
-                    <path d="M12 6.5c2-1.2 4.6-1.6 7-1.2v12.4c-2.4-.4-5 0-7 1.2" />
-                    <path d="M12 6.5v12.4" />
-                </svg>
-                <h3>All India Mushaira</h3>
-                <div class="urdu-tag" dir="rtl" lang="ur">مشاعرہ</div>
-                <div class="tag">Cultural Event</div>
-            </div>
-
-            <div class="sport-tile">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
-                    stroke-linejoin="round" aria-hidden="true">
-                    <path d="M9 3v12.5c0 1.5 1 2.5 2.4 2.5.9 0 1.7-.5 2.4-1.6L19 8" />
-                    <circle cx="19.5" cy="17.5" r="1.6" />
-                </svg>
-                <h3>All India Hockey</h3>
-                <div class="tag">Hockey Tournament</div>
-            </div>
-
-        </div>
-
-    </div>
-
-    <!-- ================= ABOUT ================= -->
-
-    <section id="about" class="wrap about">
-
-        <div>
-            <h2>About the Committee</h2>
-
-            <p>
-                Maulana Salim Jafri Sports &amp; Mushaira Committee,
-                Maudaha is dedicated to organising sports and cultural
-                events that bring players, artists, fans and communities
-                together.
-            </p>
-        </div>
-
-        <div class="about-side">
-
-            <h3>Our Events</h3>
-
-            <p>
-                From the Maudaha Premier League to All India Hockey
-                tournaments and the All India Mushaira, our aim is to
-                create well-organised events that celebrate talent,
-                sportsmanship and community spirit.
-            </p>
-
-        </div>
-
-    </section>
-
-    <!-- ================= EVENTS ================= -->
-
-    <section id="events" class="events">
-
-        <div class="wrap">
-
-            <h2>Upcoming Events</h2>
-
-            <p class="events-intro">
-                Explore the major events organised by the Maulana Salim
-                Jafri Sports &amp; Mushaira Committee.
-                Cricket registration is currently available for MPL.
-            </p>
-
-            <div class="event-list">
-
-                <!-- MPL: REGISTRATION AVAILABLE -->
-                <div class="event-row">
-
-                    <div>
-                        <h3>Maudaha Premier League (MPL)</h3>
-
-                        <div class="loc">
-                            Rahmania Sports Ground, Maudaha
-                        </div>
-
-                        <div class="event-type">
-                            Cricket Tournament
-                        </div>
-
-                        <p style="font-size:14px; color:#4a4a45; margin-top:8px; max-width:480px;">
-                            Tennis ball cricket — inauguration ceremony on
-                            28 October 2026 (Wednesday).
-                        </p>
-                    </div>
-
-                    <a href="#register" class="btn btn-outline">
-                        Register
-                    </a>
-
-                </div>
-
-                <!-- MUSHAIRA: INFORMATION ONLY -->
-                <div class="event-row">
-
-                    <div>
-                        <h3>All India Mushaira</h3>
-
-                        <div class="loc">
-                            Rahmania Sports Ground, Maudaha
-                        </div>
-
-                        <div class="event-type">
-                            Mushaira &amp; Cultural Event
-                        </div>
-
-                        <p style="font-size:14px; color:#4a4a45; margin-top:8px; max-width:480px;">
-                            A gathering of celebrated poets from across India, reciting Urdu
-                            poetry to a shared audience in Maudaha. The Mushaira is a night of
-                            shayari, ghazals, and community — open to all, no registration
-                            required.
-                        </p>
-                    </div>
-
-                    <span class="info-only">
-                        15 Nov 2026
-                    </span>
-
-                </div>
-
-                <!-- HOCKEY: INFORMATION ONLY -->
-                <div class="event-row">
-
-                    <div>
-                        <h3>All India Hockey Tournament</h3>
-
-                        <div class="loc">
-                            Rahmania Sports Ground, Maudaha
-                        </div>
-
-                        <div class="event-type">
-                            Hockey Tournament
-                        </div>
-
-                        <p style="font-size:14px; color:#4a4a45; margin-top:8px; max-width:480px;">
-                            Hockey teams from across the country compete on the Maudaha
-                            grounds in a national-level tournament, bringing top talent and
-                            a big crowd to the town. Entry for spectators is free — team
-                            participation details are announced separately by the committee.
-                        </p>
-                    </div>
-
-                    <span class="info-only">
-                        7 – 14 Nov 2026
-                    </span>
-
-                </div>
-
-            </div>
-
-        </div>
-
-    </section>
-
-    <!-- ================= REGISTRATION ================= -->
-
-    <section id="register" class="register">
-
-        <div class="register-panel">
-
-            <span class="corner tr" aria-hidden="true"></span>
-            <span class="corner bl" aria-hidden="true"></span>
-
-            <h2>Register for MPL</h2>
-
-            <p class="sub">
-                Maudaha Premier League cricket registration.
-                Payment confirms your registration.
-            </p>
-
-            <div id="registration-closed-banner" style="
-                display:none;
-                background:#fbe9e7;
-                border:1px solid #B5462F;
-                color:#B5462F;
-                padding:16px;
-                border-radius:6px;
-                text-align:center;
-                font-weight:bold;
-                margin-bottom:20px;
-            ">
-                Registration is currently closed. Please check back later.
-            </div>
-
-            <form id="regForm">
-
-                <!-- PLAYER DETAILS -->
-
-                <div class="section-label">
-                    Player Details
-                </div>
-
-                <div class="field">
-
-                    <label for="reg-name">Full Name</label>
-
-                    <input type="text" id="reg-name" required placeholder="Enter full name">
-
-                </div>
-
-                <div class="field-row">
-
-                    <div class="field">
-
-                        <label for="reg-dob">Date of Birth</label>
-
-                        <input type="date" id="reg-dob" required>
-
-                    </div>
-
-                    <div class="field">
-
-                        <label for="reg-father">Father's Name</label>
-
-                        <input type="text" id="reg-father" required placeholder="Enter father's name">
-
-                    </div>
-
-                </div>
-
-                <div class="field-row">
-
-                    <div class="field">
-
-                        <label for="reg-phone">Mobile Number</label>
-
-                        <input type="tel" id="reg-phone" required inputmode="numeric" pattern="[0-9]{10}" maxlength="10"
-                            minlength="10" placeholder="10-digit mobile number">
-
-                    </div>
-
-                    <div class="field">
-
-                        <label for="reg-email">Email <span
-                                style="color:#999; text-transform:none;">(optional)</span></label>
-
-                        <input type="email" id="reg-email" placeholder="Enter email address">
-
-                    </div>
-
-                </div>
-
-                <div class="field">
-
-                    <label for="reg-address">
-                        Permanent Address
-                    </label>
-
-                    <input type="text" id="reg-address" required placeholder="Enter permanent address">
-
-                </div>
-
-                <div class="field-row">
-
-                    <div class="field">
-
-                        <label for="reg-blood">
-                            Blood Group <span style="color:#999; text-transform:none;">(optional)</span>
-                        </label>
-
-                        <select id="reg-blood">
-                            <option value="">Select</option>
-                            <option>A+</option>
-                            <option>A-</option>
-                            <option>B+</option>
-                            <option>B-</option>
-                            <option>O+</option>
-                            <option>O-</option>
-                            <option>AB+</option>
-                            <option>AB-</option>
-                        </select>
-
-                    </div>
-
-                    <div class="field">
-
-                        <label for="reg-aadhaar">
-                            Aadhaar Number
-                        </label>
-
-                        <input type="text" id="reg-aadhaar" maxlength="12" minlength="12" pattern="[0-9]{12}" required
-                            placeholder="12-digit number">
-
-                    </div>
-
-                </div>
-
-                <div class="field-row">
-
-                    <div class="field">
-
-                        <label for="reg-idtype">
-                            ID Proof Type
-                        </label>
-
-                        <select id="reg-idtype" disabled>
-                            <option value="Aadhaar Card" selected>Aadhaar Card</option>
-                        </select>
-
-                    </div>
-
-                    <div class="field">
-
-                        <label for="reg-photo">
-                            Player Photo
-                        </label>
-
-                        <input type="file" id="reg-photo" accept="image/*" required>
-
-                    </div>
-
-                </div>
-
-                <div class="field-row">
-
-                    <div class="field">
-
-                        <label for="reg-idphoto">
-                            ID Proof Photo
-                        </label>
-
-                        <input type="file" id="reg-idphoto" accept="image/*" required>
-
-                    </div>
-
-                </div>
-
-                <!-- PLAYING PROFILE -->
-
-                <div class="section-label">
-                    Playing Profile
-                </div>
-
-                <div class="field">
-
-                    <label>Playing Role</label>
-
-                    <div class="radio-group">
-
-                        <label>
-                            <input type="checkbox" id="reg-batsman">
-                            Batsman
-                        </label>
-
-                        <label>
-                            <input type="checkbox" id="reg-bowler-role">
-                            Bowler
-                        </label>
-
-                    </div>
-
-                </div>
-
-                <div class="field">
-
-                    <label>Batting Style</label>
-
-                    <div class="radio-group">
-
-                        <label>
-                            <input type="radio" name="batting" value="Right Hand" required>
-                            Right Hand
-                        </label>
-
-                        <label>
-                            <input type="radio" name="batting" value="Left Hand">
-                            Left Hand
-                        </label>
-
-                    </div>
-
-                </div>
-
-                <div class="field">
-
-                    <label>Bowling Arm</label>
-
-                    <div class="radio-group">
-
-                        <label>
-                            <input type="radio" name="bowlarm" value="Right Hand" required>
-                            Right Hand
-                        </label>
-
-                        <label>
-                            <input type="radio" name="bowlarm" value="Left Hand">
-                            Left Hand
-                        </label>
-
-                    </div>
-
-                </div>
-
-                <div class="field">
-
-                    <label>Bowling Type</label>
-
-                    <div class="radio-group">
-
-                        <label>
-                            <input type="radio" name="bowltype" value="Fast" required>
-                            Fast
-                        </label>
-
-                        <label>
-                            <input type="radio" name="bowltype" value="Medium Fast">
-                            Medium Fast
-                        </label>
-
-                        <label>
-                            <input type="radio" name="bowltype" value="Leg Spin">
-                            Leg Spin
-                        </label>
-
-                        <label>
-                            <input type="radio" name="bowltype" value="Off Spin">
-                            Off Spin
-                        </label>
-
-                    </div>
-
-                </div>
-
-                <!-- KIT DETAILS -->
-
-                <div class="section-label">
-                    Kit Details <span style="color:#999; text-transform:none; letter-spacing:0;">(optional)</span>
-                </div>
-
-                <div class="field-row">
-
-                    <div class="field">
-
-                        <label for="reg-lowersize">
-                            Trouser / Lower Size
-                        </label>
-
-                        <select id="reg-lowersize">
-                            <option value="">Select</option>
-                            <option>S</option>
-                            <option>M</option>
-                            <option>L</option>
-                            <option>XL</option>
-                            <option>XXL</option>
-                        </select>
-
-                    </div>
-
-                    <div class="field">
-
-                        <label for="reg-tshirtsize">
-                            T-Shirt Size
-                        </label>
-
-                        <select id="reg-tshirtsize">
-                            <option value="">Select</option>
-                            <option>S</option>
-                            <option>M</option>
-                            <option>L</option>
-                            <option>XL</option>
-                            <option>XXL</option>
-                        </select>
-
-                    </div>
-
-                </div>
-
-                <div class="field-row">
-
-                    <div class="field">
-
-                        <label for="reg-jerseynum">
-                            Jersey Number
-                        </label>
-
-                        <input type="number" id="reg-jerseynum" min="0" max="99" placeholder="0 - 99">
-
-                    </div>
-
-                    <div class="field">
-
-                        <label for="reg-jerseyname">
-                            Jersey Name
-                        </label>
-
-                        <input type="text" id="reg-jerseyname" placeholder="Name on jersey">
-
-                    </div>
-
-                </div>
-
-                <!-- EVENT -->
-
-                <div class="section-label">
-                    Event
-                </div>
-
-                <div class="field">
-
-                    <label for="reg-event">
-                        Tournament
-                    </label>
-
-                    <!-- ONLY CRICKET / MPL IS AVAILABLE FOR REGISTRATION -->
-                    <select id="reg-event" disabled>
-
-                        <option value="mpl" selected>
-                            Maudaha Premier League (MPL)
-                        </option>
-
-                    </select>
-
-                </div>
-
-                <div class="registration-note">
-                    <strong>Registration note:</strong>
-                    Registration is currently available only for the
-                    Maudaha Premier League (MPL) cricket tournament.
-                    All India Mushaira and All India Hockey are
-                    information-only events on this website.
-                </div>
-
-                <div class="fee-row">
-
-                    <span>
-                        Registration Fee
-                    </span>
-
-                    <span class="fee-amt">
-                        ₹700
-                    </span>
-
-                </div>
-
-                <button type="submit" class="btn btn-gold btn-pay">
-                    Pay &amp; Confirm Registration
-                </button>
-
-                <div class="secure-note">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
-                        stroke-linejoin="round" aria-hidden="true">
-                        <rect x="5" y="11" width="14" height="9" rx="1.5" />
-                        <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
-                    </svg>
-                    Payments secured by Razorpay
-                </div>
-
-                <div id="reg-status"></div>
-
-            </form>
-
-        </div>
-
-    </section>
-
-    <!-- ================= FOOTER ================= -->
-
-    <footer id="contact">
-
-        <div class="footer-grid">
-
-            <div>
-
-                <h4>
-                    Maulana Salim Jafri Sports &amp; Mushaira Committee
-                </h4>
-
-                <p>
-                    Maudaha — bringing sports, cricket, hockey and
-                    cultural events together for the community.
-                </p>
-
-            </div>
-
-            <div>
-
-                <h4>Quick Links</h4>
-
-                <a href="#about">About Us</a>
-                <a href="#events">Events</a>
-                <a href="#register">MPL Registration</a>
-
-            </div>
-
-            <div id="contact">
-
-                <h4>Contact</h4>
-
-                <p>
-                    Maudaha, Hamirpur<br>
-                    Uttar Pradesh – 210507
-                </p>
-
-                <p>
-                    Nizam Uddin (Power)<br>
-                    +91 96511 34637
-                </p>
-
-            </div>
-
-        </div>
-
-        <div class="footer-bottom" style="margin-top:20px;">
-            &copy; 2026 Maulana Salim Jafri Sports &amp; Mushaira Committee.
-            All rights reserved.
-        </div>
-
-        <div class="footer-bottom" style="margin-top:6px;">
-            Organized by Nizam Uddin (Power) &middot; +91 96511 34637
-        </div>
-
-        <div class="footer-bottom"
-            style="margin-top:10px; display:flex; align-items:center; justify-content:center; gap:8px;">
-            <img src="assets/developer.jpeg" alt="Ishan Khan"
-                style="width:36px; height:36px; border-radius:50%; object-fit:cover;">
-            <span>Developed by Ishan Khan</span>
-        </div>
-
-    </footer>
-
-    <!-- ================= JAVASCRIPT ================= -->
-
-    <script>
-        /* Mobile nav menu */
-        const navToggle = document.getElementById('nav-toggle');
-        const navLinks = document.getElementById('nav-links');
-
-        navToggle.addEventListener('click', function () {
-            const isOpen = navLinks.classList.toggle('open');
-            navToggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
-        });
-
-        navLinks.querySelectorAll('a').forEach(function (link) {
-            link.addEventListener('click', function () {
-                navLinks.classList.remove('open');
-                navToggle.setAttribute('aria-expanded', 'false');
-            });
-        });
-
-        const form = document.getElementById('regForm');
-        const statusEl = document.getElementById('reg-status');
-        const closedBanner = document.getElementById('registration-closed-banner');
-
-        /* Shows the status banner in the right style (error / info / success) */
-        function setStatus(kind, message) {
-            statusEl.className = 'status-' + kind;
-            statusEl.textContent = message;
-        }
-
-        /* Shows a live "site is busy" countdown, resolving once it hits
-           zero — used to pause and then auto-retry after a 503 response. */
-        function delayWithCountdown(seconds) {
-            return new Promise(function (resolve) {
-                let remaining = seconds;
-
-                statusEl.className = 'status-info';
-                statusEl.textContent =
-                    'The site is busy right now. Retrying automatically in ' + remaining + 's...';
-
-                const timer = setInterval(function () {
-                    remaining--;
-
-                    if (remaining <= 0) {
-                        clearInterval(timer);
-                        resolve();
-                        return;
-                    }
-
-                    statusEl.textContent =
-                        'The site is busy right now. Retrying automatically in ' + remaining + 's...';
-                }, 1000);
-            });
-        }
-
-        /* Shrinks a photo in the browser before it's ever uploaded —
-           resizes it to a sensible max dimension and re-encodes it as a
-           JPEG at a reasonable quality. A phone photo straight off the
-           camera can be 4-8MB; this brings it down to a few hundred KB
-           without the photo looking noticeably worse, which matters a
-           lot on a small free-tier server handling many uploads at once. */
-        function compressImage(file, maxDimension, quality) {
-            return new Promise(function (resolve, reject) {
-                const img = new Image();
-                const objectUrl = URL.createObjectURL(file);
-
-                img.onload = function () {
-                    URL.revokeObjectURL(objectUrl);
-
-                    let width = img.width;
-                    let height = img.height;
-
-                    if (width > maxDimension || height > maxDimension) {
-                        if (width > height) {
-                            height = Math.round(height * (maxDimension / width));
-                            width = maxDimension;
-                        } else {
-                            width = Math.round(width * (maxDimension / height));
-                            height = maxDimension;
-                        }
-                    }
-
-                    const canvas = document.createElement('canvas');
-                    canvas.width = width;
-                    canvas.height = height;
-
-                    const ctx = canvas.getContext('2d');
-                    ctx.drawImage(img, 0, 0, width, height);
-
-                    resolve(canvas.toDataURL('image/jpeg', quality));
-                };
-
-                img.onerror = function () {
-                    URL.revokeObjectURL(objectUrl);
-                    reject(new Error('Could not read image file.'));
-                };
-
-                img.src = objectUrl;
-            });
-        }
-
-        /* Compresses a photo, falling back to the original file untouched
-           if compression fails for any reason (unsupported format, etc)
-           so a photo never blocks someone's registration outright. */
-        async function getPhotoBase64(file, maxDimension, quality) {
-            if (!file) {
-                return null;
-            }
-
-            try {
-                return await compressImage(file, maxDimension, quality);
-            } catch (err) {
-                console.error('Photo compression failed, using original file:', err);
-
-                return await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-
-                    reader.readAsDataURL(file);
-                });
-            }
-        }
-
-        function escapeHtml(str) {
-            return String(str).replace(/[&<>"']/g, function (c) {
-                return {
-                    '&': '&amp;',
-                    '<': '&lt;',
-                    '>': '&gt;',
-                    '"': '&quot;',
-                    "'": '&#39;'
-                }[c];
-            });
-        }
-
-        /* The celebratory confirmation shown once payment is verified */
-        function showSuccessCard(name) {
-            statusEl.className = 'status-success-card';
-            statusEl.innerHTML =
-                '<div class="success-card">' +
-                '<svg class="success-check" viewBox="0 0 52 52" aria-hidden="true">' +
-                '<circle cx="26" cy="26" r="25" fill="none"></circle>' +
-                '<path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>' +
-                '</svg>' +
-                '<h3>You\'re in' + (name ? ', ' + escapeHtml(name) : '') + '!</h3>' +
-                '<p>Payment successful — your MPL registration is confirmed. See you on the ground.</p>' +
-                '</div>';
-        }
-
-        // Check whether registration is open as soon as the page loads
-        (async function checkRegistrationStatus() {
-            try {
-                const res = await fetch('/registration-status');
-                const data = await res.json();
-
-                if (!data.open) {
-                    form.style.display = 'none';
-                    closedBanner.style.display = 'block';
-                }
-            } catch (err) {
-                // If the check itself fails, don't block the form —
-                // the server still enforces this on actual submission.
-                console.error('Could not check registration status:', err);
-            }
-        })();
-
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault();
-
-            /* Check every required/pattern field on the form (name, DOB,
-               father's name, phone, address, Aadhaar, both photos, and
-               the batting/bowling radio groups). If anything is missing
-               or invalid, the browser shows its own message and jumps
-               straight to that field — nothing proceeds until it's fixed. */
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
-
-            /* At least one playing role must be selected */
-            const isBatsman = document.getElementById('reg-batsman').checked;
-            const isBowler = document.getElementById('reg-bowler-role').checked;
-
-            if (!isBatsman && !isBowler) {
-                setStatus('error', 'Please select at least one playing role (Batsman or Bowler).');
-                document.getElementById('reg-batsman').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
-
-            /* Compress and convert both photos to base64. The player
-               photo is just a headshot, so it can compress harder; the
-               ID proof photo is compressed more gently so the Aadhaar
-               text stays legible for the committee to verify. */
-            setStatus('info', 'Preparing photos...');
-
-            const photoFile = document.getElementById('reg-photo').files[0];
-            const idPhotoFile = document.getElementById('reg-idphoto').files[0];
-
-            const photoBase64 = await getPhotoBase64(photoFile, 1000, 0.75);
-            const idPhotoBase64 = await getPhotoBase64(idPhotoFile, 1600, 0.85);
-
-            const battingStyle =
-                document.querySelector('input[name="batting"]:checked');
-
-            const bowlingArm =
-                document.querySelector('input[name="bowlarm"]:checked');
-
-            const bowlingType =
-                document.querySelector('input[name="bowltype"]:checked');
-
-            const formData = {
-                name: document.getElementById('reg-name').value.trim(),
-                dob: document.getElementById('reg-dob').value,
-                fatherName: document.getElementById('reg-father').value.trim(),
-                email: document.getElementById('reg-email').value.trim(),
-                phone: document.getElementById('reg-phone').value.trim(),
-                address: document.getElementById('reg-address').value.trim(),
-                bloodGroup: document.getElementById('reg-blood').value,
-                aadhaar: document.getElementById('reg-aadhaar').value.trim(),
-                idProofType: document.getElementById('reg-idtype').value,
-                photo: photoBase64,
-                idProofPhoto: idPhotoBase64,
-
-                isBatsman: isBatsman,
-                isBowler: isBowler,
-
-                battingStyle:
-                    battingStyle ? battingStyle.value : '',
-
-                bowlingArm:
-                    bowlingArm ? bowlingArm.value : '',
-
-                bowlingType:
-                    bowlingType ? bowlingType.value : '',
-
-                lowerSize:
-                    document.getElementById('reg-lowersize').value,
-
-                tshirtSize:
-                    document.getElementById('reg-tshirtsize').value,
-
-                jerseyNumber:
-                    document.getElementById('reg-jerseynum').value,
-
-                jerseyName:
-                    document.getElementById('reg-jerseyname').value.trim(),
-
-                event:
-                    document.getElementById('reg-event').value
-            };
-
-            /* Basic phone validation */
-            if (!/^\d{10}$/.test(formData.phone)) {
-                setStatus('error', 'Please enter a valid 10-digit mobile number.');
-                document.getElementById('reg-phone').focus();
-                return;
-            }
-
-            /* Basic Aadhaar validation */
-            if (!/^\d{12}$/.test(formData.aadhaar)) {
-                setStatus('error', 'Please enter a valid 12-digit Aadhaar number.');
-                document.getElementById('reg-aadhaar').focus();
-                return;
-            }
-
-            if (!formData.event) {
-                setStatus('error', 'Please select Maudaha Premier League (MPL).');
-                return;
-            }
-
-            setStatus('info', 'Creating payment order...');
-
-            /* Step 1: Create Razorpay order — retries a few times with a
-               visible countdown if the server reports it's too busy right
-               now, instead of just failing outright. */
-            let order;
-            const MAX_BUSY_RETRIES = 3;
-
-            try {
-
-                let orderRes, orderData;
-
-                for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
-
-                    orderRes = await fetch('/create-order', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            amount: 70000,
-                            aadhaar: formData.aadhaar
-                        })
-                    });
-
-                    orderData = await orderRes.json();
-
-                    if (
-                        orderRes.status === 503 &&
-                        orderData.error === 'high_traffic' &&
-                        attempt < MAX_BUSY_RETRIES
-                    ) {
-                        await delayWithCountdown(orderData.retryAfterSeconds || 20);
-                        continue;
-                    }
-
-                    break;
-                }
-
-                order = orderData;
-
-                if (!orderRes.ok) {
-                    setStatus('error', order.message || order.error || 'Could not create payment order.');
-                    return;
-                }
-
-            } catch (err) {
-                console.error(err);
-
-                setStatus('error', 'Could not reach the server. Please make sure Node.js is running.');
-                return;
-            }
-
-            /* Step 2: Open Razorpay */
-            if (!window.Razorpay) {
-                setStatus('error', 'Razorpay checkout could not be loaded. Check your internet connection.');
-                return;
-            }
-
-            const options = {
-                key: order.keyId,
-                amount: order.amount,
-                currency: order.currency,
-                order_id: order.id,
-
-                name:
-                    'Maulana Salim Jafri Sports & Mushaira Committee',
-
-                description:
-                    'MPL Registration - Maudaha Premier League',
-
-                prefill: {
-                    name: formData.name,
-                    email: formData.email,
-                    contact: formData.phone
-                },
-
-                handler: async function (response) {
-
-                    setStatus('info', 'Payment successful. Verifying registration...');
-
-                    try {
-
-                        let verifyRes, result;
-
-                        for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
-
-                            verifyRes = await fetch('/verify-payment', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    razorpay_order_id:
-                                        response.razorpay_order_id,
-
-                                    razorpay_payment_id:
-                                        response.razorpay_payment_id,
-
-                                    razorpay_signature:
-                                        response.razorpay_signature,
-
-                                    formData
-                                })
-                            });
-
-                            result = await verifyRes.json();
-
-                            if (
-                                verifyRes.status === 503 &&
-                                result.error === 'high_traffic' &&
-                                attempt < MAX_BUSY_RETRIES
-                            ) {
-                                await delayWithCountdown(result.retryAfterSeconds || 20);
-                                setStatus('info', 'Payment successful. Verifying registration...');
-                                continue;
-                            }
-
-                            break;
-                        }
-
-                        if (result.success) {
-
-                            showSuccessCard(formData.name);
-
-                            form.reset();
-
-                        } else {
-
-                            setStatus('error', result.message ||
-                                'Payment could not be verified. If your payment was deducted, please contact the committee — your money is safe, this only affects the registration record.');
-
-                        }
-
-                    } catch (err) {
-
-                        console.error(err);
-
-                        setStatus('error', 'Payment completed, but verification failed. Please contact the committee.');
-
-                    }
-                },
-
-                modal: {
-                    ondismiss: function () {
-
-                        setStatus('error', 'Payment cancelled. Registration not submitted.');
-
-                    }
-                }
-            };
-
-            const rzp = new Razorpay(options);
-
-            rzp.on('payment.failed', function (response) {
-
-                console.error(response);
-
-                setStatus('error', 'Payment failed. Registration was not submitted.');
-
-            });
-
-            rzp.open();
-        });
-    </script>
+<h2>
+    Registrations (${registrations.length} total)
+</h2>
+
+<div style="
+    display:flex;
+    align-items:center;
+    gap:14px;
+    padding:14px 18px;
+    margin-bottom:16px;
+    border-radius:6px;
+    background:${settings.registrationOpen ? '#e7f3ea' : '#fbe9e7'};
+    border:1px solid ${settings.registrationOpen ? '#16342B' : '#B5462F'};
+">
+    <span style="font-weight:bold; color:${settings.registrationOpen ? '#16342B' : '#B5462F'};">
+        Registration is currently ${settings.registrationOpen ? 'OPEN' : 'CLOSED'}
+    </span>
+
+    <a
+        href="/admin/toggle-registration"
+        class="btn"
+        style="
+            margin-top:0;
+            background:${settings.registrationOpen ? '#B5462F' : '#16342B'};
+            color:#fff;
+        "
+    >
+        ${settings.registrationOpen ? 'Close Registration' : 'Open Registration'}
+    </a>
+</div>
+
+<a class="btn" href="/admin/export">
+    Download CSV
+</a>
+
+<a
+    class="btn"
+    href="/admin/export-auction"
+    style="background:#16342B;color:#fff;margin-left:10px;"
+>
+    Download for Cricauction
+</a>
+
+<table>
+
+<tr>
+
+<th>Photo</th>
+<th>ID Photo</th>
+<th>Name</th>
+<th>DOB</th>
+<th>Father's Name</th>
+<th>Phone</th>
+<th>Email</th>
+<th>Blood Group</th>
+<th>Role</th>
+<th>Batting</th>
+<th>Bowling</th>
+<th>Jersey</th>
+<th>Event</th>
+<th>Fee</th>
+<th>UTR</th>
+<th>Payment Status</th>
+<th>Date</th>
+<th>Action</th>
+
+</tr>
+
+${rows}
+
+</table>
 
 </body>
 
 </html>
+
+        `);
+
+        } catch (err) {
+
+            console.error(err);
+
+            res.status(500).send(
+                'Could not load registrations.'
+            );
+        }
+    }
+);
+
+
+// ---------- Toggle registration open/closed ----------
+app.get(
+    '/admin/toggle-registration',
+    adminLimiter, checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const settings = await getSettings();
+            settings.registrationOpen = !settings.registrationOpen;
+            await settings.save();
+
+            res.redirect('/admin');
+
+        } catch (err) {
+
+            console.error('Error toggling registration status:', err);
+            res.status(500).send('Could not update registration status.');
+        }
+    }
+);
+
+
+// ---------- Delete a registration ----------
+app.post(
+    '/admin/delete-registration/:aadhaar',
+    adminLimiter, checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const { aadhaar } = req.params;
+
+            const deleted = await Registration.findByIdAndDelete(aadhaar);
+
+            if (!deleted) {
+                return res.status(404).send('Registration not found.');
+            }
+
+            res.redirect('/admin');
+
+        } catch (err) {
+
+            console.error('Error deleting registration:', err);
+            res.status(500).send('Could not delete registration.');
+        }
+    }
+);
+
+
+// ---------- Export CSV ----------
+app.get(
+    '/admin/export',
+    adminLimiter, checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const registrations =
+                await Registration.find()
+                    .sort({ createdAt: -1 });
+
+            const baseUrl = req.protocol + '://' + req.get('host');
+
+            let csv =
+                'Name,DOB,Father Name,Phone,Email,Address,Blood Group,Aadhaar,ID Proof,Role,Batting Style,Bowling Arm,Bowling Type,Lower Size,T-shirt Size,Jersey Number,Jersey Name,Event,Payment Amount,Payment UTR,Payment Status,Player Photo URL,ID Proof Photo URL,Date\n';
+
+            registrations.forEach(r => {
+
+                const role = [
+                    r.isBatsman
+                        ? 'Batsman'
+                        : '',
+                    r.isBowler
+                        ? 'Bowler'
+                        : ''
+                ]
+                    .filter(Boolean)
+                    .join('/');
+
+                const row = [
+
+                    r.name,
+                    r.dob,
+                    r.fatherName,
+                    r.phone,
+                    r.email,
+                    r.address,
+                    r.bloodGroup,
+                    r.aadhaar,
+                    r.idProofType,
+                    role,
+                    r.battingStyle,
+                    r.bowlingArm,
+                    r.bowlingType,
+                    r.lowerSize,
+                    r.tshirtSize,
+                    r.jerseyNumber,
+                    r.jerseyName,
+                    r.event,
+                    r.paymentAmount || 700,
+                    r.paymentUtr,
+                    r.paymentStatus,
+                    r.photo ? `${baseUrl}/photo/${r.aadhaar}/player` : '',
+                    r.idProofPhoto ? `${baseUrl}/photo/${r.aadhaar}/idproof` : '',
+                    r.createdAt
+                        ? new Date(
+                            r.createdAt
+                        ).toLocaleString()
+                        : ''
+
+                ]
+                    .map(field =>
+                        `"${(field || '')
+                            .toString()
+                            .replace(
+                                /"/g,
+                                '""'
+                            )}"`
+                    )
+                    .join(',');
+
+                csv += row + '\n';
+
+            });
+
+            res.setHeader(
+                'Content-Type',
+                'text/csv'
+            );
+
+            res.setHeader(
+                'Content-Disposition',
+                'attachment; filename=registrations.csv'
+            );
+
+            res.send(csv);
+
+        } catch (err) {
+
+            console.error(err);
+
+            res.status(500).send(
+                'Export failed.'
+            );
+        }
+
+    }
+);
+
+
+// ---------- Serve a registrant's photo as a real image URL ----------
+// (used in CSV/Excel exports, since spreadsheets can't render raw base64 data)
+app.get(
+    '/photo/:aadhaar/:type',
+    adminLimiter, checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const { aadhaar, type } = req.params;
+
+            if (!['player', 'idproof'].includes(type)) {
+                return res.status(400).send('Invalid photo type.');
+            }
+
+            const registration = await Registration.findById(aadhaar);
+
+            if (!registration) {
+                return res.status(404).send('Registration not found.');
+            }
+
+            const dataUrl = type === 'player'
+                ? registration.photo
+                : registration.idProofPhoto;
+
+            if (!dataUrl) {
+                return res.status(404).send('No photo on file.');
+            }
+
+            // dataUrl looks like: data:image/jpeg;base64,/9j/4AAQ...
+            const match = dataUrl.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+
+            if (!match) {
+                return res.status(500).send('Photo data is in an unexpected format.');
+            }
+
+            const contentType = match[1];
+            const buffer = Buffer.from(match[2], 'base64');
+
+            res.setHeader('Content-Type', contentType);
+            res.send(buffer);
+
+        } catch (err) {
+            console.error('Error serving photo:', err);
+            res.status(500).send('Could not load photo.');
+        }
+    }
+);
+
+
+// ---------- Public candidate photo (no login) ----------
+// Used by the Cricauction app to load the player photo from the exported file.
+// Only the player's own photo is public here — the Aadhaar/ID proof photo
+// stays admin-only through the /photo/:aadhaar/:type route above.
+app.get('/player-photo/:aadhaar', async (req, res) => {
+
+    try {
+
+        const { aadhaar } = req.params;
+
+        const registration = await Registration.findById(aadhaar);
+
+        if (!registration || !registration.photo) {
+            return res.status(404).send('Photo not found.');
+        }
+
+        const match = registration.photo.match(/^data:(image\/[a-zA-Z]+);base64,(.+)$/);
+
+        if (!match) {
+            return res.status(500).send('Photo data is in an unexpected format.');
+        }
+
+        const contentType = match[1];
+        const buffer = Buffer.from(match[2], 'base64');
+
+        res.setHeader('Content-Type', contentType);
+        res.send(buffer);
+
+    } catch (err) {
+        console.error('Error serving player photo:', err);
+        res.status(500).send('Could not load photo.');
+    }
+});
+
+
+// ---------- Cricauction export ----------
+app.get(
+    '/admin/export-auction',
+    adminLimiter, checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const registrations =
+                await Registration.find()
+                    .sort({ createdAt: 1 });
+
+            const baseUrl = req.protocol + '://' + req.get('host');
+
+            const header = [
+
+                'No',
+                'NAME',
+                'PHONE',
+                'PHOTO',
+                'AGE',
+                'SKILL',
+                'SPECIFICATION 1',
+                'SPECIFICATION 2',
+                'SPECIFICATION 3',
+                'CATEGORY',
+                'EXTRA DETAILS',
+                'JERSEY NAME',
+                'JERSEY NO',
+                'JERSEY SIZE',
+                'TROUSER SIZE',
+                'BASE VALUE',
+                'MATCH',
+                'RUN',
+                'WICKET',
+                'CUSTOM DATA',
+                'INFO 1',
+                'INFO 2',
+                'INFO 3',
+                'INFO 4',
+                'INFO 5',
+                'INFO 6',
+                'UPLOAD IMAGE 1',
+                'UPLOAD IMAGE 2'
+
+            ];
+
+            const skillFor = r => {
+
+                if (
+                    r.isBatsman &&
+                    r.isBowler
+                ) {
+                    return 'All Rounder';
+                }
+
+                if (r.isBatsman) {
+                    return 'Batsman';
+                }
+
+                if (r.isBowler) {
+                    return 'Bowler';
+                }
+
+                return '';
+            };
+
+            const ageFromDob = dob => {
+
+                if (!dob) {
+                    return '';
+                }
+
+                const birth =
+                    new Date(dob);
+
+                if (isNaN(birth)) {
+                    return '';
+                }
+
+                const diff =
+                    Date.now() -
+                    birth.getTime();
+
+                return Math.floor(
+                    diff /
+                    (
+                        1000 *
+                        60 *
+                        60 *
+                        24 *
+                        365.25
+                    )
+                );
+            };
+
+            const workbook = new ExcelJS.Workbook();
+            const sheet = workbook.addWorksheet('Sheet1');
+
+            sheet.addRow(header);
+
+            registrations.forEach(
+                (r, i) => {
+
+                    // Only one photo goes in the file — the candidate's own
+                    // photo, in the PHOTO column, via a link that doesn't
+                    // need admin login so the Cricauction app can load it.
+                    const photoUrl = r.photo
+                        ? `${baseUrl}/player-photo/${r.aadhaar}`
+                        : '';
+
+                    sheet.addRow([
+
+                        i + 1,
+                        r.name || '',
+                        r.phone || '',
+                        photoUrl,
+                        ageFromDob(r.dob),
+                        skillFor(r),
+                        r.battingStyle || '',
+                        r.bowlingArm || '',
+                        r.bowlingType || '',
+
+                        '',
+                        r.address || '',
+                        r.jerseyName || '',
+                        r.jerseyNumber || '',
+                        r.tshirtSize || '',
+                        r.lowerSize || '',
+
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+                        '',
+
+                        '',
+                        ''
+
+                    ]);
+
+                }
+            );
+
+            res.setHeader(
+                'Content-Type',
+                'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+            );
+
+            res.setHeader(
+                'Content-Disposition',
+                'attachment; filename=cricauction-upload.xlsx'
+            );
+
+            await workbook.xlsx.write(res);
+            res.end();
+
+        } catch (err) {
+
+            console.error(err);
+
+            res.status(500).send(
+                'Auction export failed.'
+            );
+        }
+
+    }
+);
+
+
+// ---------- 404 for anything unmatched ----------
+app.use((req, res) => {
+    res.status(404).send('Not found.');
+});
+
+// ---------- Final error-handling safety net ----------
+// Catches anything that reaches here instead of letting it crash
+// the process or hang the request.
+app.use((err, req, res, next) => {
+    console.error('Unhandled route error:', err);
+
+    if (res.headersSent) {
+        return next(err);
+    }
+
+    res.status(500).send('Something went wrong. Please try again.');
+});
+
+
+// ---------- Start server ----------
+const PORT = process.env.PORT || 3000;
+
+app.listen(PORT, () => {
+
+    console.log(
+        'Server running on port ' + PORT
+    );
+
+});
