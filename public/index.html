@@ -409,6 +409,13 @@
             letter-spacing: 0.04em;
         }
 
+        .urdu-tag {
+            font-size: 17px;
+            color: var(--green);
+            margin-top: 4px;
+            opacity: 0.75;
+        }
+
         @media (max-width: 700px) {
             .sports-strip {
                 grid-template-columns: 1fr;
@@ -756,6 +763,81 @@
             font-weight: 600;
         }
 
+        /* Celebratory confirmation shown once payment is verified —
+           the one moment on the site worth making memorable. */
+        #reg-status.status-success-card {
+            background: rgba(22, 52, 43, 0.07);
+            border-color: rgba(22, 52, 43, 0.25);
+            padding: 28px 16px;
+        }
+
+        .success-card {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 10px;
+        }
+
+        .success-check {
+            width: 50px;
+            height: 50px;
+        }
+
+        .success-check circle {
+            stroke: var(--green);
+            stroke-width: 2;
+            fill: none;
+            stroke-dasharray: 166;
+            stroke-dashoffset: 166;
+            animation: draw-circle 0.5s ease forwards;
+        }
+
+        .success-check path {
+            stroke: var(--green);
+            stroke-width: 3;
+            fill: none;
+            stroke-linecap: round;
+            stroke-linejoin: round;
+            stroke-dasharray: 48;
+            stroke-dashoffset: 48;
+            animation: draw-check 0.3s ease forwards 0.5s;
+        }
+
+        @keyframes draw-circle {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @keyframes draw-check {
+            to {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        @media (prefers-reduced-motion: reduce) {
+
+            .success-check circle,
+            .success-check path {
+                stroke-dashoffset: 0;
+            }
+        }
+
+        .success-card h3 {
+            font-family: 'Fraunces', serif;
+            font-weight: 500;
+            text-transform: none;
+            letter-spacing: 0;
+            font-size: 22px;
+            color: var(--green);
+        }
+
+        .success-card p {
+            font-size: 14px;
+            color: #4a4a45;
+            max-width: 360px;
+        }
+
         #reg-status.status-info {
             background: rgba(74, 74, 69, 0.07);
             border-color: rgba(74, 74, 69, 0.2);
@@ -955,6 +1037,7 @@
                     <path d="M12 6.5v12.4" />
                 </svg>
                 <h3>All India Mushaira</h3>
+                <div class="urdu-tag" dir="rtl" lang="ur">مشاعرہ</div>
                 <div class="tag">Cultural Event</div>
             </div>
 
@@ -1596,6 +1679,32 @@
             statusEl.textContent = message;
         }
 
+        function escapeHtml(str) {
+            return String(str).replace(/[&<>"']/g, function (c) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#39;'
+                }[c];
+            });
+        }
+
+        /* The celebratory confirmation shown once payment is verified */
+        function showSuccessCard(name) {
+            statusEl.className = 'status-success-card';
+            statusEl.innerHTML =
+                '<div class="success-card">' +
+                '<svg class="success-check" viewBox="0 0 52 52" aria-hidden="true">' +
+                '<circle cx="26" cy="26" r="25" fill="none"></circle>' +
+                '<path fill="none" d="M14.1 27.2l7.1 7.2 16.7-16.8"></path>' +
+                '</svg>' +
+                '<h3>You\'re in' + (name ? ', ' + escapeHtml(name) : '') + '!</h3>' +
+                '<p>Payment successful — your MPL registration is confirmed. See you on the ground.</p>' +
+                '</div>';
+        }
+
         // Check whether registration is open as soon as the page loads
         (async function checkRegistrationStatus() {
             try {
@@ -1817,7 +1926,7 @@
 
                         if (result.success) {
 
-                            setStatus('success', 'Payment successful. MPL registration confirmed!');
+                            showSuccessCard(formData.name);
 
                             form.reset();
 
