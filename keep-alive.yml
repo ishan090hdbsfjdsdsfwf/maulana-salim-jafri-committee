@@ -1,0 +1,16 @@
+name: Keep Render Alive
+
+on:
+  schedule:
+    # Runs every 14 minutes — Render sleeps after 15 minutes of no
+    # traffic, so this keeps it just barely awake, 24/7.
+    - cron: '*/14 * * * *'
+  workflow_dispatch: {}
+    # ^ lets you also trigger it manually from the Actions tab, to test it
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping the live site
+        run: curl -sSf https://maulana-salim-jafri-committee.onrender.com/ -o /dev/null
