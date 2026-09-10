@@ -10,6 +10,15 @@ require('dotenv').config();
 
 const app = express();
 
+// Render puts every request behind its own proxy, which sets the
+// X-Forwarded-For header to the visitor's real IP. Express ignores that
+// header by default (a sane default if you're NOT behind a trusted
+// proxy — otherwise anyone could fake their IP). Since we genuinely
+// are behind Render's proxy, we tell Express to trust exactly one hop
+// of forwarding, so express-rate-limit can correctly tell visitors
+// apart instead of throwing the validation error seen in the logs.
+app.set('trust proxy', 1);
+
 
 // ---------- Crash safety net ----------
 // These catch anything that happens outside a normal request/response
