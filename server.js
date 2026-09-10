@@ -843,17 +843,21 @@ a.btn {
         Registration is currently ${settings.registrationOpen ? 'OPEN' : 'CLOSED'}
     </span>
 
-    <a
-        href="/admin/toggle-registration"
-        class="btn"
-        style="
-            margin-top:0;
-            background:${settings.registrationOpen ? '#B5462F' : '#16342B'};
-            color:#fff;
-        "
-    >
-        ${settings.registrationOpen ? 'Close Registration' : 'Open Registration'}
-    </a>
+    <form method="POST" action="/admin/toggle-registration" style="margin:0;">
+        <button
+            type="submit"
+            class="btn"
+            style="
+                margin-top:0;
+                background:${settings.registrationOpen ? '#B5462F' : '#16342B'};
+                color:#fff;
+                border:none;
+                cursor:pointer;
+            "
+        >
+            ${settings.registrationOpen ? 'Close Registration' : 'Open Registration'}
+        </button>
+    </form>
 </div>
 
 <a class="btn" href="/admin/export">
@@ -916,7 +920,7 @@ ${rows}
 
 
 // ---------- Toggle registration open/closed ----------
-app.get(
+app.post(
     '/admin/toggle-registration',
     adminLimiter, checkAdminAuth,
     async (req, res) => {
