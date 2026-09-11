@@ -1831,28 +1831,95 @@
             }
         })();
 
-        form.addEventListener('submit', async function (e) {
-            e.preventDefault();
+       form.addEventListener('submit', async function (e) {
+    e.preventDefault();
 
-            /* Check every required/pattern field on the form (name, DOB,
-               father's name, phone, address, Aadhaar, both photos, and
-               the batting/bowling radio groups). If anything is missing
-               or invalid, the browser shows its own message and jumps
-               straight to that field — nothing proceeds until it's fixed. */
-            if (!form.checkValidity()) {
-                form.reportValidity();
-                return;
-            }
+    /* ================= PLAYING ROLE ================= */
 
-            /* At least one playing role must be selected */
-            const isBatsman = document.getElementById('reg-batsman').checked;
-            const isBowler = document.getElementById('reg-bowler-role').checked;
+    const isBatsman =
+        document.getElementById('reg-batsman').checked;
 
-            if (!isBatsman && !isBowler) {
-                setStatus('error', 'Please select at least one playing role (Batsman or Bowler).');
-                document.getElementById('reg-batsman').scrollIntoView({ behavior: 'smooth', block: 'center' });
-                return;
-            }
+    const isBowler =
+        document.getElementById('reg-bowler-role').checked;
+
+    const isAllRounder =
+        document.getElementById('reg-allrounder').checked;
+
+
+    /* At least one playing role must be selected */
+    if (!isBatsman && !isBowler && !isAllRounder) {
+        setStatus(
+            'error',
+            'Please select at least one playing role.'
+        );
+
+        document.getElementById('reg-batsman').scrollIntoView({
+            behavior: 'smooth',
+            block: 'center'
+        });
+
+        return;
+    }
+
+
+    /* Get selected batting/bowling options */
+    const battingStyle =
+        document.querySelector('input[name="batting"]:checked');
+
+    const bowlingArm =
+        document.querySelector('input[name="bowlarm"]:checked');
+
+    const bowlingType =
+        document.querySelector('input[name="bowltype"]:checked');
+
+
+    /* Batsman OR All Rounder → Batting Style required */
+    if ((isBatsman || isAllRounder) && !battingStyle) {
+        setStatus(
+            'error',
+            'Please select your Batting Style.'
+        );
+        return;
+    }
+
+
+    /* Bowler OR All Rounder → Bowling Arm required */
+    if ((isBowler || isAllRounder) && !bowlingArm) {
+        setStatus(
+            'error',
+            'Please select your Bowling Arm.'
+        );
+        return;
+    }
+
+
+    /* Bowler OR All Rounder → Bowling Type required */
+    if ((isBowler || isAllRounder) && !bowlingType) {
+        setStatus(
+            'error',
+            'Please select your Bowling Type.'
+        );
+        return;
+    }
+
+
+    /* Check every other required/pattern field */
+    if (!form.checkValidity()) {
+        form.reportValidity();
+        return;
+    }
+
+    /* Compress and convert both photos to base64. The player
+       photo is just a headshot, so it can compress harder; the
+       ID proof photo is compressed more gently so the Aadhaar
+       text stays legible for the committee to verify. */
+    setStatus('info', 'Preparing photos...');
+
+    const photoFile = document.getElementById('reg-photo').files[0];
+    const idPhotoFile = document.getElementById('reg-idphoto').files[0];
+
+    const photoBase64 = await getPhotoBase64(photoFile, 1000, 0.75);
+    const idPhotoBase64 = await getPhotoBase64(idPhotoFile, 1600, 0.85);
 
             /* Compress and convert both photos to base64. The player
                photo is just a headshot, so it can compress harder; the
@@ -1865,15 +1932,6 @@
 
             const photoBase64 = await getPhotoBase64(photoFile, 1000, 0.75);
             const idPhotoBase64 = await getPhotoBase64(idPhotoFile, 1600, 0.85);
-
-            const battingStyle =
-                document.querySelector('input[name="batting"]:checked');
-
-            const bowlingArm =
-                document.querySelector('input[name="bowlarm"]:checked');
-
-            const bowlingType =
-                document.querySelector('input[name="bowltype"]:checked');
 
             const formData = {
                 name: document.getElementById('reg-name').value.trim(),
