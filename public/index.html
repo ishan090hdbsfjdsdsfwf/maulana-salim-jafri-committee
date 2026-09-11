@@ -1831,7 +1831,7 @@
             }
         })();
 
-       form.addEventListener('submit', async function (e) {
+form.addEventListener('submit', async function (e) {
     e.preventDefault();
 
     /* ================= PLAYING ROLE ================= */
@@ -1850,7 +1850,7 @@
     if (!isBatsman && !isBowler && !isAllRounder) {
         setStatus(
             'error',
-            'Please select at least one playing role.'
+            'Please select your Playing Role.'
         );
 
         document.getElementById('reg-batsman').scrollIntoView({
@@ -1862,7 +1862,8 @@
     }
 
 
-    /* Get selected batting/bowling options */
+    /* ================= GET PLAYING OPTIONS ================= */
+
     const battingStyle =
         document.querySelector('input[name="batting"]:checked');
 
@@ -1872,6 +1873,8 @@
     const bowlingType =
         document.querySelector('input[name="bowltype"]:checked');
 
+
+    /* ================= ROLE VALIDATION ================= */
 
     /* Batsman OR All Rounder → Batting Style required */
     if ((isBatsman || isAllRounder) && !battingStyle) {
@@ -1903,37 +1906,70 @@
     }
 
 
-    /* Check every other required/pattern field */
+    /* ================= FIX HTML REQUIRED VALIDATION ================= */
+
+    /* Remove required from all playing-profile options first */
+    document
+        .querySelectorAll('input[name="batting"]')
+        .forEach(input => input.required = false);
+
+    document
+        .querySelectorAll('input[name="bowlarm"]')
+        .forEach(input => input.required = false);
+
+    document
+        .querySelectorAll('input[name="bowltype"]')
+        .forEach(input => input.required = false);
+
+
+    /* Batsman → batting is required */
+    if (isBatsman || isAllRounder) {
+        document
+            .querySelectorAll('input[name="batting"]')
+            .forEach(input => input.required = true);
+    }
+
+
+    /* Bowler → bowling arm + bowling type required */
+    if (isBowler || isAllRounder) {
+        document
+            .querySelectorAll('input[name="bowlarm"]')
+            .forEach(input => input.required = true);
+
+        document
+            .querySelectorAll('input[name="bowltype"]')
+            .forEach(input => input.required = true);
+    }
+
+
+    /* ================= NORMAL FORM VALIDATION ================= */
+
     if (!form.checkValidity()) {
         form.reportValidity();
         return;
     }
 
-    /* Compress and convert both photos to base64. The player
-       photo is just a headshot, so it can compress harder; the
-       ID proof photo is compressed more gently so the Aadhaar
-       text stays legible for the committee to verify. */
+
+    /* ================= PHOTOS ================= */
+
     setStatus('info', 'Preparing photos...');
 
-    const photoFile = document.getElementById('reg-photo').files[0];
-    const idPhotoFile = document.getElementById('reg-idphoto').files[0];
+    const photoFile =
+        document.getElementById('reg-photo').files[0];
 
-    const photoBase64 = await getPhotoBase64(photoFile, 1000, 0.75);
-    const idPhotoBase64 = await getPhotoBase64(idPhotoFile, 1600, 0.85);
+    const idPhotoFile =
+        document.getElementById('reg-idphoto').files[0];
 
-            /* Compress and convert both photos to base64. The player
-               photo is just a headshot, so it can compress harder; the
-               ID proof photo is compressed more gently so the Aadhaar
-               text stays legible for the committee to verify. */
-            setStatus('info', 'Preparing photos...');
+    const photoBase64 =
+        await getPhotoBase64(photoFile, 1000, 0.75);
 
-            const photoFile = document.getElementById('reg-photo').files[0];
-            const idPhotoFile = document.getElementById('reg-idphoto').files[0];
+    const idPhotoBase64 =
+        await getPhotoBase64(idPhotoFile, 1600, 0.85);
 
-            const photoBase64 = await getPhotoBase64(photoFile, 1000, 0.75);
-            const idPhotoBase64 = await getPhotoBase64(idPhotoFile, 1600, 0.85);
 
-            const formData = {
+    /* ================= FORM DATA ================= */
+
+    const formData = {
                 name: document.getElementById('reg-name').value.trim(),
                 dob: document.getElementById('reg-dob').value,
                 fatherName: document.getElementById('reg-father').value.trim(),
