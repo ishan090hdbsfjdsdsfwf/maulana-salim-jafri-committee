@@ -951,6 +951,219 @@ app.post(
 );
 
 
+// ---------- Admin: Add Registration ----------
+app.post('/admin/add-registration', checkAdminAuth, async (req, res) => {
+    try {
+        const data = req.body;
+
+        if (!data.aadhaar) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aadhaar number is required.'
+            });
+        }
+
+        if (!/^\d{12}$/.test(data.aadhaar)) {
+            return res.status(400).json({
+                success: false,
+                message: 'Aadhaar number must be exactly 12 digits.'
+            });
+        }
+
+        const existing = await Registration.findById(data.aadhaar);
+
+        if (existing) {
+            return res.status(409).json({
+                success: false,
+                message: 'A registration with this Aadhaar number already exists.'
+            });
+        }
+
+        const registration = new Registration({
+            _id: data.aadhaar,
+
+            name: data.name || '',
+            dob: data.dob || '',
+            fatherName: data.fatherName || '',
+            email: data.email || '',
+            phone: data.phone || '',
+            address: data.address || '',
+            bloodGroup: data.bloodGroup || '',
+
+            aadhaar: data.aadhaar,
+            idProofType: data.idProofType || '',
+            photo: data.photo || '',
+
+            isBatsman: data.isBatsman === true || data.isBatsman === 'true',
+            isBowler: data.isBowler === true || data.isBowler === 'true',
+
+            battingStyle: data.battingStyle || '',
+            bowlingArm: data.bowlingArm || '',
+            bowlingType: data.bowlingType || '',
+
+            lowerSize: data.lowerSize || '',
+            tshirtSize: data.tshirtSize || '',
+
+            jerseyNumber: data.jerseyNumber || '',
+            jerseyName: data.jerseyName || '',
+
+            event: data.event || 'mpl',
+
+            paymentAmount:
+                data.paymentAmount !== undefined &&
+                data.paymentAmount !== ''
+                    ? Number(data.paymentAmount)
+                    : 700,
+
+            paymentMethod: data.paymentMethod || 'UPI QR',
+            paymentUtr: data.paymentUtr || '',
+            paymentScreenshot: data.paymentScreenshot || '',
+
+            paymentStatus:
+                data.paymentStatus || 'Pending Verification'
+        });
+
+        await registration.save();
+
+        res.json({
+            success: true,
+            message: 'Registration added successfully.',
+            registrationId: registration._id
+        });
+
+    } catch (err) {
+        console.error('Admin add registration error:', err);
+
+        if (err.code === 11000) {
+            return res.status(409).json({
+                success: false,
+                message: 'This Aadhaar number is already registered.'
+            });
+        }
+
+        res.status(500).json({
+            success: false,
+            message: 'Could not add registration.'
+        });
+    }
+});
+
+
+// ---------- Admin: Get Single Registration ----------
+app.get('/admin/registration/:id', checkAdminAuth, async (req, res) => {
+    try {
+        const registration =
+            await Registration.findById(req.params.id);
+
+        if (!registration) {
+            return res.status(404).json({
+                success: false,
+                message: 'Registration not found.'
+            });
+        }
+
+        res.json({
+            success: true,
+            registration
+        });
+
+    } catch (err) {
+        console.error('Get registration error:', err);
+
+        res.status(500).json({
+            success: false,
+            message: 'Could not load registration.'
+        });
+    }
+});
+
+
+// ---------- Admin: Edit Registration ----------
+app.put('/admin/edit-registration/:id', checkAdminAuth, async (req, res) => {
+    try {
+        const data = req.body;
+
+        const registration =
+            await Registration.findById(req.params.id);
+
+        if (!registration) {
+            return res.status(404).json({
+                success: false,
+                message: 'Registration not found.'
+            });
+        }
+
+        // Aadhaar is also the MongoDB _id in your current system,
+        // so we keep it unchanged while editing.
+        registration.name = data.name || '';
+        registration.dob = data.dob || '';
+        registration.fatherName = data.fatherName || '';
+        registration.email = data.email || '';
+        registration.phone = data.phone || '';
+        registration.address = data.address || '';
+        registration.bloodGroup = data.bloodGroup || '';
+
+        registration.idProofType = data.idProofType || '';
+        registration.photo = data.photo || '';
+
+        registration.isBatsman =
+            data.isBatsman === true ||
+            data.isBatsman === 'true';
+
+        registration.isBowler =
+            data.isBowler === true ||
+            data.isBowler === 'true';
+
+        registration.battingStyle = data.battingStyle || '';
+        registration.bowlingArm = data.bowlingArm || '';
+        registration.bowlingType = data.bowlingType || '';
+
+        registration.lowerSize = data.lowerSize || '';
+        registration.tshirtSize = data.tshirtSize || '';
+
+        registration.jerseyNumber = data.jerseyNumber || '';
+        registration.jerseyName = data.jerseyName || '';
+
+        registration.event = data.event || 'mpl';
+
+        if (
+            data.paymentAmount !== undefined &&
+            data.paymentAmount !== ''
+        ) {
+            registration.paymentAmount =
+                Number(data.paymentAmount);
+        }
+
+        registration.paymentMethod =
+            data.paymentMethod || 'UPI QR';
+
+        registration.paymentUtr =
+            data.paymentUtr || '';
+
+        registration.paymentScreenshot =
+            data.paymentScreenshot || '';
+
+        registration.paymentStatus =
+            data.paymentStatus || 'Pending Verification';
+
+        await registration.save();
+
+        res.json({
+            success: true,
+            message: 'Registration updated successfully.'
+        });
+
+    } catch (err) {
+        console.error('Admin edit registration error:', err);
+
+        res.status(500).json({
+            success: false,
+            message: 'Could not update registration.'
+        });
+    }
+});
+
+
 // ---------- Delete a registration ----------
 app.post(
     '/admin/delete-registration/:aadhaar',
