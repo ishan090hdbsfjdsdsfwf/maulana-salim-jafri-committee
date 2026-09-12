@@ -268,6 +268,8 @@ const registrationSchema =
 
         isBowler: Boolean,
 
+        isAllRounder: Boolean,
+
         battingStyle: String,
 
         bowlingArm: String,
@@ -518,6 +520,9 @@ app.post(
 
                     isBowler:
                         formData.isBowler,
+
+                    isAllRounder:
+                        !!(formData.isBatsman && formData.isBowler),
 
                     battingStyle:
                         formData.battingStyle,
@@ -981,6 +986,9 @@ app.post(
                     isBowler:
                         formData.isBowler,
 
+                    isAllRounder:
+                        !!(formData.isBatsman && formData.isBowler),
+
                     battingStyle:
                         formData.battingStyle,
 
@@ -1336,6 +1344,10 @@ app.get(
 
             r.isBowler
                 ? 'Bowler'
+                : '',
+
+            r.isAllRounder
+                ? 'All Rounder'
                 : ''
 
         ]
@@ -2391,17 +2403,18 @@ ${rows}
             Bowler
 
         </label>
-          <label>
 
-        <input
-            type="checkbox"
-            id="isAllRounder"
-            name="isAllRounder"
-        >
+        <label>
 
-        All Rounder
+            <input
+                type="checkbox"
+                id="isAllRounder"
+                name="isAllRounder"
+            >
 
-    </label>
+            All Rounder
+
+        </label>
 
     </div>
 
@@ -2940,6 +2953,12 @@ async function editRegistration(id) {
 
 
         document.getElementById(
+            'isAllRounder'
+        ).checked =
+            !!r.isAllRounder;
+
+
+        document.getElementById(
             'battingStyle'
         ).value =
             r.battingStyle || '';
@@ -3285,10 +3304,10 @@ document.getElementById(
                         'isBowler'
                     ).checked,
 
-                document.getElementById(
-                    'isAllRounder'
-                ).checked =
-                    !!r.isAllRounder;
+                isAllRounder:
+                    document.getElementById(
+                        'isAllRounder'
+                    ).checked,
 
                 battingStyle:
                     document.getElementById(
@@ -3630,6 +3649,10 @@ app.post(
                         data.isBowler === true ||
                         data.isBowler === 'true',
 
+                    isAllRounder:
+                        data.isAllRounder === true ||
+                        data.isAllRounder === 'true',
+
                     battingStyle:
                         data.battingStyle || '',
 
@@ -3912,6 +3935,11 @@ app.put(
                 data.isBowler === 'true';
 
 
+            registration.isAllRounder =
+                data.isAllRounder === true ||
+                data.isAllRounder === 'true';
+
+
             registration.battingStyle =
                 data.battingStyle || '';
 
@@ -4123,6 +4151,7 @@ app.get(
                         r.isBowler
                             ? 'Bowler'
                             : '',
+
                         r.isAllRounder
                             ? 'All Rounder'
                             : ''
@@ -4186,7 +4215,7 @@ app.get(
                         ? `${baseUrl}/photo/${r.aadhaar}/idproof`
                         : '',
 
-                                       r.createdAt
+                    r.createdAt
                         ? new Date(r.createdAt).toLocaleString('en-IN', {
                             timeZone: 'Asia/Kolkata',
                             day: '2-digit',
@@ -4551,8 +4580,11 @@ app.get(
             const skillFor = r => {
 
                 if (
-                    r.isBatsman &&
-                    r.isBowler
+                    r.isAllRounder ||
+                    (
+                        r.isBatsman &&
+                        r.isBowler
+                    )
                 ) {
 
                     return 'All Rounder';
