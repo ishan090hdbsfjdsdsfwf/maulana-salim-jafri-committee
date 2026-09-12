@@ -111,7 +111,7 @@ app.use(generalLimiter);
 
 const adminLimiter = rateLimit({
     windowMs: 15 * 60 * 1000,
-    max: 20,
+    max: 2000,
     standardHeaders: true,
     legacyHeaders: false,
     message: 'Too many attempts. Please try again later.'
