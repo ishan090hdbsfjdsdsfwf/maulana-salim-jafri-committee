@@ -2391,6 +2391,17 @@ ${rows}
             Bowler
 
         </label>
+          <label>
+
+        <input
+            type="checkbox"
+            id="isAllRounder"
+            name="isAllRounder"
+        >
+
+        All Rounder
+
+    </label>
 
     </div>
 
@@ -3274,6 +3285,11 @@ document.getElementById(
                         'isBowler'
                     ).checked,
 
+                document.getElementById(
+                    'isAllRounder'
+                ).checked =
+                    !!r.isAllRounder;
+
                 battingStyle:
                     document.getElementById(
                         'battingStyle'
@@ -4106,7 +4122,11 @@ app.get(
 
                         r.isBowler
                             ? 'Bowler'
+                            : '',
+                        r.isAllRounder
+                            ? 'All Rounder'
                             : ''
+
 
                     ]
                         .filter(Boolean)
