@@ -1978,8 +1978,11 @@ form.addEventListener('submit', async function (e) {
                 photo: photoBase64,
                 idProofPhoto: idPhotoBase64,
 
-                isBatsman: isBatsman,
-                isBowler: isBowler,
+                /* All Rounder counts as both, so the batsman/bowler
+                   flags and downstream exports stay accurate. */
+                isBatsman: isBatsman || isAllRounder,
+                isBowler: isBowler || isAllRounder,
+                isAllRounder: isAllRounder,
 
                 battingStyle:
                     battingStyle ? battingStyle.value : '',
