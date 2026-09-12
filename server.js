@@ -319,6 +319,12 @@ const registrationSchema =
     });
 
 
+/* Without this, sorting by createdAt has to load every full document
+   (including the base64 photo fields) into memory to sort them, which
+   blows past MongoDB's 32MB in-memory sort limit once there are enough
+   registrations. An index lets MongoDB sort using the index instead. */
+registrationSchema.index({ createdAt: -1 });
+
 const Registration =
     mongoose.model(
         'Registration',
@@ -1235,7 +1241,8 @@ app.get(
                     .find()
                     .sort({
                         createdAt: -1
-                    });
+                    })
+                    .allowDiskUse();
 
 
             const rows =
@@ -4126,7 +4133,8 @@ app.get(
                     .find()
                     .sort({
                         createdAt: -1
-                    });
+                    })
+                    .allowDiskUse();
 
 
             const baseUrl =
@@ -4507,7 +4515,8 @@ app.get(
                     .find()
                     .sort({
                         createdAt: 1
-                    });
+                    })
+                    .allowDiskUse();
 
 
             const baseUrl =
