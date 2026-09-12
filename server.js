@@ -1239,6 +1239,7 @@ app.get(
             const registrations =
                 await Registration
                     .find()
+                    .select('-photo -idProofPhoto')
                     .sort({
                         createdAt: -1
                     })
@@ -1268,10 +1269,12 @@ app.get(
     <td>
 
         ${
-            r.photo
+            true
 
                 ? `<img
-                    src="${r.photo}"
+                    src="/player-photo/${id}"
+                    loading="lazy"
+                    onerror="this.style.display='none'"
                     style="
                         width:50px;
                         height:50px;
@@ -1289,14 +1292,16 @@ app.get(
     <td>
 
         ${
-            r.idProofPhoto
+            true
 
                 ? `<a
-                    href="${r.idProofPhoto}"
+                    href="/photo/${id}/idproof"
                     target="_blank"
                 >
                     <img
-                        src="${r.idProofPhoto}"
+                        src="/photo/${id}/idproof"
+                        loading="lazy"
+                        onerror="this.style.display='none'"
                         style="
                             width:50px;
                             height:50px;
