@@ -4,6 +4,7 @@ const mongoose = require('mongoose');
 const crypto = require('crypto');
 const Razorpay = require('razorpay');
 const ExcelJS = require('exceljs');
+const sharp = require('sharp');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 
@@ -4407,6 +4408,15 @@ app.get(
                 contentType
             );
 
+            // Cache for 1 day - photos don't change once uploaded, so the
+            // browser reuses them across admin page reloads instead of
+            // re-downloading every photo every time (this was the main
+            // driver of excess Render bandwidth usage).
+            res.setHeader(
+                'Cache-Control',
+                'private, max-age=86400'
+            );
+
 
             res.send(
                 buffer
@@ -4493,6 +4503,12 @@ app.get(
             res.setHeader(
                 'Content-Type',
                 contentType
+            );
+
+            // Cache for 1 day - same reasoning as the admin photo route
+            res.setHeader(
+                'Cache-Control',
+                'public, max-age=86400'
             );
 
 
@@ -4866,6 +4882,102 @@ app.use(
             'Something went wrong. Please try again.'
         );
 
+    }
+);
+
+
+// ============================================================
+// ONE-TIME: RE-COMPRESS EXISTING PHOTOS
+// ============================================================
+// New uploads are compressed client-side, but registrations saved
+// before that fix still hold full-size camera photos (3-8MB each).
+// This walks through every registration and shrinks any photo over
+// 400KB down to a small JPEG, cutting both database size and the
+// bandwidth used every time the admin page (or exports) load them.
+// Safe to run more than once - already-small photos are skipped.
+
+app.get(
+    '/admin/recompress-photos',
+    adminLimiter,
+    checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const registrations =
+                await Registration.find();
+
+            let photosChecked = 0;
+            let photosCompressed = 0;
+            let bytesBefore = 0;
+            let bytesAfter = 0;
+
+            const SIZE_THRESHOLD = 400 * 1024; // 400KB
+
+            async function maybeCompress(dataUrl) {
+
+                if (!dataUrl) {
+                    return { changed: false, dataUrl };
+                }
+
+                const match = dataUrl.match(
+                    /^data:(image\/[a-zA-Z]+);base64,(.+)$/
+                );
+
+                if (!match) {
+                    return { changed: false, dataUrl };
+                }
+
+                photosChecked++;
+
+                const originalBuffer = Buffer.from(match[2], 'base64');
+                bytesBefore += originalBuffer.length;
+
+                if (originalBuffer.length <= SIZE_THRESHOLD) {
+                    bytesAfter += originalBuffer.length;
+                    return { changed: false, dataUrl };
+                }
+
+                const compressedBuffer = await sharp(originalBuffer)
+                    .resize(1000, 1000, { fit: 'inside', withoutEnlargement: true })
+                    .jpeg({ quality: 70 })
+                    .toBuffer();
+
+                bytesAfter += compressedBuffer.length;
+                photosCompressed++;
+
+                return {
+                    changed: true,
+                    dataUrl: `data:image/jpeg;base64,${compressedBuffer.toString('base64')}`
+                };
+            }
+
+            for (const r of registrations) {
+
+                const player = await maybeCompress(r.photo);
+                const idProof = await maybeCompress(r.idProofPhoto);
+
+                if (player.changed || idProof.changed) {
+                    if (player.changed) r.photo = player.dataUrl;
+                    if (idProof.changed) r.idProofPhoto = idProof.dataUrl;
+                    await r.save();
+                }
+            }
+
+            res.send(`
+                <h2>Photo recompression complete</h2>
+                <p>Photos checked: ${photosChecked}</p>
+                <p>Photos compressed: ${photosCompressed}</p>
+                <p>Total size before: ${(bytesBefore / 1024 / 1024).toFixed(2)} MB</p>
+                <p>Total size after: ${(bytesAfter / 1024 / 1024).toFixed(2)} MB</p>
+                <p>Saved: ${((bytesBefore - bytesAfter) / 1024 / 1024).toFixed(2)} MB</p>
+                <p><a href="/admin">Back to admin</a></p>
+            `);
+
+        } catch (err) {
+            console.error('Error recompressing photos:', err);
+            res.status(500).send('Recompression failed: ' + err.message);
+        }
     }
 );
 
