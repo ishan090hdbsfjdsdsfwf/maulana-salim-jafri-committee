@@ -528,7 +528,7 @@ app.post(
                         formData.isBowler,
 
                     isAllRounder:
-                        !!(formData.isBatsman && formData.isBowler),
+                        !!(formData.isAllRounder || (formData.isBatsman && formData.isBowler)),
 
                     battingStyle:
                         formData.battingStyle,
@@ -993,7 +993,7 @@ app.post(
                         formData.isBowler,
 
                     isAllRounder:
-                        !!(formData.isBatsman && formData.isBowler),
+                        !!(formData.isAllRounder || (formData.isBatsman && formData.isBowler)),
 
                     battingStyle:
                         formData.battingStyle,
@@ -3160,10 +3160,12 @@ function showMessage(
 
 
 // ============================================================
-// FILE TO DATA URL
+// FILE TO DATA URL (compressed to reduce bandwidth/storage -
+// camera photos are often 3-8MB uncompressed; this resizes and
+// re-encodes as JPEG so stored/served photos stay small)
 // ============================================================
 
-function fileToDataUrl(file) {
+function fileToDataUrl(file, maxDimension = 1000, quality = 0.7) {
 
     return new Promise(
         (resolve, reject) => {
@@ -3177,26 +3179,40 @@ function fileToDataUrl(file) {
             }
 
 
-            const reader =
-                new FileReader();
+            const img = new Image();
+            const objectUrl = URL.createObjectURL(file);
 
+            img.onload = () => {
 
-            reader.onload = () => {
+                URL.revokeObjectURL(objectUrl);
 
-                resolve(
-                    reader.result
-                );
+                let { width, height } = img;
+
+                if (width > height && width > maxDimension) {
+                    height = Math.round(height * (maxDimension / width));
+                    width = maxDimension;
+                } else if (height > maxDimension) {
+                    width = Math.round(width * (maxDimension / height));
+                    height = maxDimension;
+                }
+
+                const canvas = document.createElement('canvas');
+                canvas.width = width;
+                canvas.height = height;
+
+                const ctx = canvas.getContext('2d');
+                ctx.drawImage(img, 0, 0, width, height);
+
+                resolve(canvas.toDataURL('image/jpeg', quality));
 
             };
 
+            img.onerror = () => {
+                URL.revokeObjectURL(objectUrl);
+                reject(new Error('Could not load image for compression'));
+            };
 
-            reader.onerror =
-                reject;
-
-
-            reader.readAsDataURL(
-                file
-            );
+            img.src = objectUrl;
 
         }
     );
