@@ -325,12 +325,12 @@
             gap: 0;
         }
 
-        .stats-grid > div {
+        .stats-grid>div {
             padding: 0 24px;
             border-left: 1px solid rgba(14, 36, 30, 0.15);
         }
 
-        .stats-grid > div:first-child {
+        .stats-grid>div:first-child {
             border-left: none;
             padding-left: 0;
         }
@@ -357,7 +357,7 @@
                 row-gap: 28px;
             }
 
-            .stats-grid > div:nth-child(3) {
+            .stats-grid>div:nth-child(3) {
                 border-left: none;
                 padding-left: 0;
             }
@@ -1019,8 +1019,8 @@
         <div class="sports-strip">
 
             <div class="sport-tile">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    aria-hidden="true">
                     <circle cx="18.5" cy="5.5" r="2" />
                     <path d="M16.8 7.2 7 17a2 2 0 0 0 0 2.8v0a2 2 0 0 0 2.8 0L19.6 10" />
                     <path d="M6 18 4 20" />
@@ -1030,8 +1030,8 @@
             </div>
 
             <div class="sport-tile">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    stroke-linejoin="round" aria-hidden="true">
                     <path d="M12 6.5c-2-1.2-4.6-1.6-7-1.2v12.4c2.4-.4 5 0 7 1.2" />
                     <path d="M12 6.5c2-1.2 4.6-1.6 7-1.2v12.4c-2.4-.4-5 0-7 1.2" />
                     <path d="M12 6.5v12.4" />
@@ -1042,8 +1042,8 @@
             </div>
 
             <div class="sport-tile">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"
-                    stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"
+                    stroke-linejoin="round" aria-hidden="true">
                     <path d="M9 3v12.5c0 1.5 1 2.5 2.4 2.5.9 0 1.7-.5 2.4-1.6L19 8" />
                     <circle cx="19.5" cy="17.5" r="1.6" />
                 </svg>
@@ -1108,17 +1108,12 @@
                         <h3>Maudaha Premier League (MPL)</h3>
 
                         <div class="loc">
-                            Rahmania Sports Ground, Maudaha
+                            Maudaha
                         </div>
 
                         <div class="event-type">
                             Cricket Tournament
                         </div>
-
-                        <p style="font-size:14px; color:#4a4a45; margin-top:8px; max-width:480px;">
-                            Tennis ball cricket — inauguration ceremony on
-                            28 October 2026 (Wednesday).
-                        </p>
                     </div>
 
                     <a href="#register" class="btn btn-outline">
@@ -1134,7 +1129,7 @@
                         <h3>All India Mushaira</h3>
 
                         <div class="loc">
-                            Rahmania Sports Ground, Maudaha
+                            Maudaha
                         </div>
 
                         <div class="event-type">
@@ -1150,7 +1145,7 @@
                     </div>
 
                     <span class="info-only">
-                        15 Nov 2026
+                        Coming Soon
                     </span>
 
                 </div>
@@ -1162,7 +1157,7 @@
                         <h3>All India Hockey Tournament</h3>
 
                         <div class="loc">
-                            Rahmania Sports Ground, Maudaha
+                            Maudaha
                         </div>
 
                         <div class="event-type">
@@ -1178,7 +1173,7 @@
                     </div>
 
                     <span class="info-only">
-                        7 – 14 Nov 2026
+                        Coming Soon
                     </span>
 
                 </div>
@@ -1261,9 +1256,8 @@
 
                         <label for="reg-phone">Mobile Number</label>
 
-                        <input type="tel" id="reg-phone" required inputmode="numeric"
-                            pattern="[0-9]{10}" maxlength="10" minlength="10"
-                            placeholder="10-digit mobile number">
+                        <input type="tel" id="reg-phone" required inputmode="numeric" pattern="[0-9]{10}" maxlength="10"
+                            minlength="10" placeholder="10-digit mobile number">
 
                     </div>
 
@@ -1371,28 +1365,29 @@
 
                 <div class="field">
 
-                       <label>Playing Role</label>
+                    <label>Playing Role</label>
 
-                <div class="radio-group">
-            
-                    <label>
-                        <input type="radio" name="playingRole" id="reg-batsman" value="batsman">
-                        Batsman
-                    </label>
-            
-                    <label>
-                        <input type="radio" name="playingRole" id="reg-bowler-role" value="bowler">
-                        Bowler
-                    </label>
-            
-                    <label>
-                        <input type="radio" name="playingRole" id="reg-allrounder" value="allrounder">
-                        All Rounder
-                    </label>
-            
+                    <div class="radio-group">
+
+                        <label>
+                            <input type="checkbox" id="reg-batsman">
+                            Batsman
+                        </label>
+
+                        <label>
+                            <input type="checkbox" id="reg-bowler-role">
+                            Bowler
+                        </label>
+
+                        <label>
+                            <input type="checkbox" id="reg-allrounder">
+                            All Rounder
+                        </label>
+
+                    </div>
+
                 </div>
-            
-            </div>
+
                 <div class="field">
 
                     <label>Batting Style</label>
@@ -1400,7 +1395,7 @@
                     <div class="radio-group">
 
                         <label>
-                            <input type="radio" name="batting" value="Right Hand">
+                            <input type="radio" name="batting" value="Right Hand" required>
                             Right Hand
                         </label>
 
@@ -1420,7 +1415,7 @@
                     <div class="radio-group">
 
                         <label>
-                            <input type="radio" name="bowlarm" value="Right Hand">
+                            <input type="radio" name="bowlarm" value="Right Hand" required>
                             Right Hand
                         </label>
 
@@ -1440,7 +1435,7 @@
                     <div class="radio-group">
 
                         <label>
-                            <input type="radio" name="bowltype" value="Fast">
+                            <input type="radio" name="bowltype" value="Fast" required>
                             Fast
                         </label>
 
@@ -1579,8 +1574,8 @@
                 </button>
 
                 <div class="secure-note">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6"
-                        stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"
+                        stroke-linejoin="round" aria-hidden="true">
                         <rect x="5" y="11" width="14" height="9" rx="1.5" />
                         <path d="M8 11V7.5a4 4 0 0 1 8 0V11" />
                     </svg>
@@ -1634,7 +1629,7 @@
                 </p>
 
                 <p>
-                    Nizam Uddin (Power)<br>
+                    Nizam Uddin<br>
                     +91 96511 34637
                 </p>
 
@@ -1648,7 +1643,7 @@
         </div>
 
         <div class="footer-bottom" style="margin-top:6px;">
-            Organized by Nizam Uddin (Power) &middot; +91 96511 34637
+            Organized by Nizam Uddin &middot; +91 96511 34637
         </div>
 
         <div class="footer-bottom"
@@ -1683,62 +1678,32 @@
         const statusEl = document.getElementById('reg-status');
         const closedBanner = document.getElementById('registration-closed-banner');
 
-        /* Shows the status banner in the right style (error / info / success) */
-        function setStatus(kind, message) {
-            statusEl.className = 'status-' + kind;
-            statusEl.textContent = message;
-        }
-
-        /* Shows a live "site is busy" countdown, resolving once it hits
-           zero — used to pause and then auto-retry after a 503 response. */
-        function delayWithCountdown(seconds) {
-            return new Promise(function (resolve) {
-                let remaining = seconds;
-
-                statusEl.className = 'status-info';
-                statusEl.textContent =
-                    'The site is busy right now. Retrying automatically in ' + remaining + 's...';
-
-                const timer = setInterval(function () {
-                    remaining--;
-
-                    if (remaining <= 0) {
-                        clearInterval(timer);
-                        resolve();
-                        return;
-                    }
-
-                    statusEl.textContent =
-                        'The site is busy right now. Retrying automatically in ' + remaining + 's...';
-                }, 1000);
-            });
-        }
-
-        /* Shrinks a photo in the browser before it's ever uploaded —
-           resizes it to a sensible max dimension and re-encodes it as a
-           JPEG at a reasonable quality. A phone photo straight off the
-           camera can be 4-8MB; this brings it down to a few hundred KB
-           without the photo looking noticeably worse, which matters a
-           lot on a small free-tier server handling many uploads at once. */
-        function compressImage(file, maxDimension, quality) {
-            return new Promise(function (resolve, reject) {
+        /**
+         * Compresses an image file before it's converted to base64 and sent
+         * to the server. Camera photos are often 3-8MB uncompressed - this
+         * resizes them to a reasonable max dimension and re-encodes as JPEG
+         * at a lower quality, typically shrinking files down to 100-300KB
+         * without a noticeable visual difference for ID/registration photos.
+         *
+         * This directly reduces both database storage and bandwidth usage
+         * (since the admin page loads every photo as a separate request).
+         */
+        function compressImage(file, maxDimension = 1000, quality = 0.7) {
+            return new Promise((resolve, reject) => {
                 const img = new Image();
                 const objectUrl = URL.createObjectURL(file);
 
-                img.onload = function () {
+                img.onload = () => {
                     URL.revokeObjectURL(objectUrl);
 
-                    let width = img.width;
-                    let height = img.height;
+                    let { width, height } = img;
 
-                    if (width > maxDimension || height > maxDimension) {
-                        if (width > height) {
-                            height = Math.round(height * (maxDimension / width));
-                            width = maxDimension;
-                        } else {
-                            width = Math.round(width * (maxDimension / height));
-                            height = maxDimension;
-                        }
+                    if (width > height && width > maxDimension) {
+                        height = Math.round(height * (maxDimension / width));
+                        width = maxDimension;
+                    } else if (height > maxDimension) {
+                        width = Math.round(width * (maxDimension / height));
+                        height = maxDimension;
                     }
 
                     const canvas = document.createElement('canvas');
@@ -1751,37 +1716,19 @@
                     resolve(canvas.toDataURL('image/jpeg', quality));
                 };
 
-                img.onerror = function () {
+                img.onerror = () => {
                     URL.revokeObjectURL(objectUrl);
-                    reject(new Error('Could not read image file.'));
+                    reject(new Error('Could not load image for compression'));
                 };
 
                 img.src = objectUrl;
             });
         }
 
-        /* Compresses a photo, falling back to the original file untouched
-           if compression fails for any reason (unsupported format, etc)
-           so a photo never blocks someone's registration outright. */
-        async function getPhotoBase64(file, maxDimension, quality) {
-            if (!file) {
-                return null;
-            }
-
-            try {
-                return await compressImage(file, maxDimension, quality);
-            } catch (err) {
-                console.error('Photo compression failed, using original file:', err);
-
-                return await new Promise((resolve, reject) => {
-                    const reader = new FileReader();
-
-                    reader.onload = () => resolve(reader.result);
-                    reader.onerror = reject;
-
-                    reader.readAsDataURL(file);
-                });
-            }
+        /* Shows the status banner in the right style (error / info / success) */
+        function setStatus(kind, message) {
+            statusEl.className = 'status-' + kind;
+            statusEl.textContent = message;
         }
 
         function escapeHtml(str) {
@@ -1827,145 +1774,54 @@
             }
         })();
 
-form.addEventListener('submit', async function (e) {
-    e.preventDefault();
+        form.addEventListener('submit', async function (e) {
+            e.preventDefault();
 
-    /* ================= PLAYING ROLE ================= */
+            /* Check every required/pattern field on the form (name, DOB,
+               father's name, phone, address, Aadhaar, both photos, and
+               the batting/bowling radio groups). If anything is missing
+               or invalid, the browser shows its own message and jumps
+               straight to that field — nothing proceeds until it's fixed. */
+            if (!form.checkValidity()) {
+                form.reportValidity();
+                return;
+            }
 
-    const isBatsman =
-        document.getElementById('reg-batsman').checked;
+            /* At least one playing role must be selected */
+            const isBatsman = document.getElementById('reg-batsman').checked;
+            const isBowler = document.getElementById('reg-bowler-role').checked;
+            const isAllRounder = document.getElementById('reg-allrounder').checked;
 
-    const isBowler =
-        document.getElementById('reg-bowler-role').checked;
+            if (!isBatsman && !isBowler && !isAllRounder) {
+                setStatus('error', 'Please select at least one playing role (Batsman, Bowler, or All Rounder).');
+                document.getElementById('reg-batsman').scrollIntoView({ behavior: 'smooth', block: 'center' });
+                return;
+            }
 
-    const isAllRounder =
-        document.getElementById('reg-allrounder').checked;
+            /* Convert player photo to base64 (compressed to save bandwidth/storage) */
+            const photoFile = document.getElementById('reg-photo').files[0];
 
+            const photoBase64 = photoFile
+                ? await compressImage(photoFile)
+                : null;
 
-    /* At least one playing role must be selected */
-    if (!isBatsman && !isBowler && !isAllRounder) {
-        setStatus(
-            'error',
-            'Please select your Playing Role.'
-        );
+            /* Convert ID proof photo to base64, mandatory (compressed) */
+            const idPhotoFile = document.getElementById('reg-idphoto').files[0];
 
-        document.getElementById('reg-batsman').scrollIntoView({
-            behavior: 'smooth',
-            block: 'center'
-        });
+            const idPhotoBase64 = idPhotoFile
+                ? await compressImage(idPhotoFile)
+                : null;
 
-        return;
-    }
+            const battingStyle =
+                document.querySelector('input[name="batting"]:checked');
 
+            const bowlingArm =
+                document.querySelector('input[name="bowlarm"]:checked');
 
-    /* ================= GET PLAYING OPTIONS ================= */
+            const bowlingType =
+                document.querySelector('input[name="bowltype"]:checked');
 
-    const battingStyle =
-        document.querySelector('input[name="batting"]:checked');
-
-    const bowlingArm =
-        document.querySelector('input[name="bowlarm"]:checked');
-
-    const bowlingType =
-        document.querySelector('input[name="bowltype"]:checked');
-
-
-    /* ================= ROLE VALIDATION ================= */
-
-    /* Batsman OR All Rounder → Batting Style required */
-    if ((isBatsman || isAllRounder) && !battingStyle) {
-        setStatus(
-            'error',
-            'Please select your Batting Style.'
-        );
-        return;
-    }
-
-
-    /* Bowler OR All Rounder → Bowling Arm required */
-    if ((isBowler || isAllRounder) && !bowlingArm) {
-        setStatus(
-            'error',
-            'Please select your Bowling Arm.'
-        );
-        return;
-    }
-
-
-    /* Bowler OR All Rounder → Bowling Type required */
-    if ((isBowler || isAllRounder) && !bowlingType) {
-        setStatus(
-            'error',
-            'Please select your Bowling Type.'
-        );
-        return;
-    }
-
-
-    /* ================= FIX HTML REQUIRED VALIDATION ================= */
-
-    /* Remove required from all playing-profile options first */
-    document
-        .querySelectorAll('input[name="batting"]')
-        .forEach(input => input.required = false);
-
-    document
-        .querySelectorAll('input[name="bowlarm"]')
-        .forEach(input => input.required = false);
-
-    document
-        .querySelectorAll('input[name="bowltype"]')
-        .forEach(input => input.required = false);
-
-
-    /* Batsman → batting is required */
-    if (isBatsman || isAllRounder) {
-        document
-            .querySelectorAll('input[name="batting"]')
-            .forEach(input => input.required = true);
-    }
-
-
-    /* Bowler → bowling arm + bowling type required */
-    if (isBowler || isAllRounder) {
-        document
-            .querySelectorAll('input[name="bowlarm"]')
-            .forEach(input => input.required = true);
-
-        document
-            .querySelectorAll('input[name="bowltype"]')
-            .forEach(input => input.required = true);
-    }
-
-
-    /* ================= NORMAL FORM VALIDATION ================= */
-
-    if (!form.checkValidity()) {
-        form.reportValidity();
-        return;
-    }
-
-
-    /* ================= PHOTOS ================= */
-
-    setStatus('info', 'Preparing photos...');
-
-    const photoFile =
-        document.getElementById('reg-photo').files[0];
-
-    const idPhotoFile =
-        document.getElementById('reg-idphoto').files[0];
-
-    const photoBase64 =
-        await getPhotoBase64(photoFile, 1000, 0.75);
-
-    const idPhotoBase64 =
-        await getPhotoBase64(idPhotoFile, 1600, 0.85);
-
-
-    /* ================= FORM DATA ================= */
-
-    const formData = {
+            const formData = {
                 name: document.getElementById('reg-name').value.trim(),
                 dob: document.getElementById('reg-dob').value,
                 fatherName: document.getElementById('reg-father').value.trim(),
@@ -1978,10 +1834,8 @@ form.addEventListener('submit', async function (e) {
                 photo: photoBase64,
                 idProofPhoto: idPhotoBase64,
 
-                /* All Rounder counts as both, so the batsman/bowler
-                   flags and downstream exports stay accurate. */
-                isBatsman: isBatsman || isAllRounder,
-                isBowler: isBowler || isAllRounder,
+                isBatsman: isBatsman,
+                isBowler: isBowler,
                 isAllRounder: isAllRounder,
 
                 battingStyle:
@@ -2030,47 +1884,25 @@ form.addEventListener('submit', async function (e) {
 
             setStatus('info', 'Creating payment order...');
 
-            /* Step 1: Create Razorpay order — retries a few times with a
-               visible countdown if the server reports it's too busy right
-               now, instead of just failing outright. */
+            /* Step 1: Create Razorpay order */
             let order;
-            const MAX_BUSY_RETRIES = 3;
 
             try {
+                const orderRes = await fetch('/create-order', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        amount: 70000,
+                        aadhaar: formData.aadhaar
+                    })
+                });
 
-                let orderRes, orderData;
-
-                for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
-
-                    orderRes = await fetch('/create-order', {
-                        method: 'POST',
-                        headers: {
-                            'Content-Type': 'application/json'
-                        },
-                        body: JSON.stringify({
-                            amount: 70000,
-                            aadhaar: formData.aadhaar
-                        })
-                    });
-
-                    orderData = await orderRes.json();
-
-                    if (
-                        orderRes.status === 503 &&
-                        orderData.error === 'high_traffic' &&
-                        attempt < MAX_BUSY_RETRIES
-                    ) {
-                        await delayWithCountdown(orderData.retryAfterSeconds || 20);
-                        continue;
-                    }
-
-                    break;
-                }
-
-                order = orderData;
+                order = await orderRes.json();
 
                 if (!orderRes.ok) {
-                    setStatus('error', order.message || order.error || 'Could not create payment order.');
+                    setStatus('error', order.error || 'Could not create payment order.');
                     return;
                 }
 
@@ -2111,43 +1943,26 @@ form.addEventListener('submit', async function (e) {
 
                     try {
 
-                        let verifyRes, result;
+                        const verifyRes = await fetch('/verify-payment', {
+                            method: 'POST',
+                            headers: {
+                                'Content-Type': 'application/json'
+                            },
+                            body: JSON.stringify({
+                                razorpay_order_id:
+                                    response.razorpay_order_id,
 
-                        for (let attempt = 0; attempt <= MAX_BUSY_RETRIES; attempt++) {
+                                razorpay_payment_id:
+                                    response.razorpay_payment_id,
 
-                            verifyRes = await fetch('/verify-payment', {
-                                method: 'POST',
-                                headers: {
-                                    'Content-Type': 'application/json'
-                                },
-                                body: JSON.stringify({
-                                    razorpay_order_id:
-                                        response.razorpay_order_id,
+                                razorpay_signature:
+                                    response.razorpay_signature,
 
-                                    razorpay_payment_id:
-                                        response.razorpay_payment_id,
+                                formData
+                            })
+                        });
 
-                                    razorpay_signature:
-                                        response.razorpay_signature,
-
-                                    formData
-                                })
-                            });
-
-                            result = await verifyRes.json();
-
-                            if (
-                                verifyRes.status === 503 &&
-                                result.error === 'high_traffic' &&
-                                attempt < MAX_BUSY_RETRIES
-                            ) {
-                                await delayWithCountdown(result.retryAfterSeconds || 20);
-                                setStatus('info', 'Payment successful. Verifying registration...');
-                                continue;
-                            }
-
-                            break;
-                        }
+                        const result = await verifyRes.json();
 
                         if (result.success) {
 
@@ -2157,8 +1972,7 @@ form.addEventListener('submit', async function (e) {
 
                         } else {
 
-                            setStatus('error', result.message ||
-                                'Payment could not be verified. If your payment was deducted, please contact the committee — your money is safe, this only affects the registration record.');
+                            setStatus('error', result.message || 'Payment could not be verified.');
 
                         }
 
