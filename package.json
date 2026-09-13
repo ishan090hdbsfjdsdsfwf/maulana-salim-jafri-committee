@@ -13,6 +13,7 @@
         "express-rate-limit": "^7.4.1",
         "helmet": "^8.0.0",
         "mongoose": "^8.24.4",
-        "razorpay": "^2.9.8"
+        "razorpay": "^2.9.8",
+        "sharp": "^0.33.5"
     }
 }
