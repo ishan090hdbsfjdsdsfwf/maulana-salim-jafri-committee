@@ -1202,6 +1202,43 @@ function checkAdminAuth(
 
 }
 
+// ============================================================
+// TOGGLE REGISTRATION
+// ============================================================
+
+app.post(
+    '/admin/toggle-registration',
+    checkAdminAuth,
+    async (req, res) => {
+
+        try {
+
+            const settings =
+                await getSettings();
+
+            settings.registrationOpen =
+                !settings.registrationOpen;
+
+            await settings.save();
+
+            res.redirect('/admin');
+
+        } catch (err) {
+
+            console.error(
+                'Error toggling registration:',
+                err
+            );
+
+            res.status(500).send(
+                'Could not change registration status.'
+            );
+
+        }
+
+    }
+);
+
 
 // ============================================================
 // HTML ESCAPE HELPER
